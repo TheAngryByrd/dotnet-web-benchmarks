@@ -23,6 +23,7 @@ let reportDir = "./reports"
 //Helpers
 let waitForExit ( proc : Process) = proc.WaitForExit()
 let startProc fileName args workingDir=
+    printfn "Starting %s %s" fileName args
     let proc = 
         ProcessStartInfo(FileName = fileName, Arguments = args, WorkingDirectory = workingDir, UseShellExecute = false) 
         |> Process.Start
@@ -150,9 +151,10 @@ let projects =
     [
         "KatanaPlain", msbuildAndRun
         "NowinOnMono", msbuildAndRun
+        "NancyOnKatana", msbuildAndRun
         "SuaveOnMono", msbuildAndRun
-        "SuaveOnCoreCLR", dotnetBuildAndRun
         "KestrelPlain", dotnetBuildAndRun
+        "SuaveOnCoreCLR", dotnetBuildAndRun
         "MvcOnKestrel", dotnetBuildAndRun
     ]
 let writeToFile filePath str =

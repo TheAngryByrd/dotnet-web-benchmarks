@@ -2,6 +2,7 @@ source https://www.nuget.org/api/v2
 framework: >= net45
 nuget FAKE
 nuget FSharp.Core
+nuget Nancy.Owin
 nuget Suave
 nuget Microsoft.Owin.Hosting
 nuget Nowin
