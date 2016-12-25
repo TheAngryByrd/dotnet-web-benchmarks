@@ -3,6 +3,8 @@ framework: >= net45
 nuget FAKE
 nuget FSharp.Core
 nuget Suave
+nuget Microsoft.Owin.Hosting
+nuget Nowin
 
 group Build
   source https://nuget.org/api/v2

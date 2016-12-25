@@ -3,6 +3,13 @@ NUGET
   remote: https://www.nuget.org/api/v2
     FAKE (4.47.1)
     FSharp.Core (4.0.0.1)
+    Microsoft.Owin (3.0.1)
+      Owin (>= 1.0)
+    Microsoft.Owin.Hosting (3.0.1)
+      Microsoft.Owin (>= 3.0.1)
+      Owin (>= 1.0)
+    Nowin (0.25)
+    Owin (1.0)
     Suave (1.1.3)
       FSharp.Core (>= 3.1.2.5)
 

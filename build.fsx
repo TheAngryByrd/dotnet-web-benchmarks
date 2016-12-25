@@ -146,6 +146,7 @@ type Summary = {
 
 let projects =
     [
+        "NowinOnMono", msbuildAndRun
         "SuaveOnMono", msbuildAndRun
         "SuaveOnCoreCLR", dotnetBuildAndRun
         "KestrelPlain", dotnetBuildAndRun
