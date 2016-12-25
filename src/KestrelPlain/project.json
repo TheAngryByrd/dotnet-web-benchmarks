@@ -13,11 +13,11 @@
     "dotnet-compile-fsc":"1.0.0-preview2-*"
   },
   "frameworks": {
-    "netcoreapp1.0": {
+    "netcoreapp1.1": {
       "dependencies": {
         "Microsoft.NETCore.App": {
           "type": "platform",
-          "version": "1.0.0"
+          "version": "1.1.0"
         },
         "Microsoft.FSharp.Core.netcore": "1.0.0-*",
         "Microsoft.AspNetCore.Server.Kestrel": "1.0.0-*"
