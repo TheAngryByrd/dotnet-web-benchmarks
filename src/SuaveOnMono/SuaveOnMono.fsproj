@@ -5,7 +5,7 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>8fd0728b-7b81-4dcf-bd10-ca6cacc6483b</ProjectGuid>
+    <ProjectGuid>67c0034d-446a-44fb-8004-309af20dba3d</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>SuaveOnMono</RootNamespace>
     <AssemblyName>SuaveOnMono</AssemblyName>

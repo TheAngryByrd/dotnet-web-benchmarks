@@ -48,9 +48,6 @@ let kill procId =
 let killProcessOnPort port =
     getProcessIdByPort port |> Option.iter(kill >> waitForExit)
 
-let dotnetrun project =
-    let args = sprintf "run --project %s"  project
-    startProc "dotnet" args ""
 
 // Filesets
 let appReferences  =
@@ -85,7 +82,7 @@ Target "Clean" (fun _ ->
 )
 
 let msbuild projFile =
-    MSBuildRelease "" "Rebuild" appReferences
+    MSBuildDebug "" "Build" [projFile]
     |> ignore
 
 
@@ -94,6 +91,26 @@ let msbuildAndRun projName =
     startProc (getExe projName) "" ""
     
 
+let dotnetRestore projFile =    
+    DotNetCli.Restore (fun c ->
+        { c with
+            Project = projFile
+        })
+let dotnetBuild projFile =
+    dotnetRestore projFile
+    DotNetCli.Build (fun c ->
+        { c with
+            Project = projFile
+        })
+
+
+let dotnetrun project =
+    let args = sprintf "run --project %s"  project
+    startProc "dotnet" args ""
+
+let dotnetBuildAndRun projName =
+    projName |> getProjFile |> dotnetBuild
+    projName |> getProjFile |> dotnetrun
 
 
 
@@ -120,6 +137,7 @@ type Summary = {
 let projects =
     [
         "SuaveOnMono", msbuildAndRun
+        "SuaveOnCoreCLR", dotnetBuildAndRun
     ]
 
 
@@ -134,18 +152,18 @@ let wrk threads connections duration script url=
     
 let port = 8083
 
+let runBenchmark (projectName, runner) =   
+    use proc = runner projectName
+    waitForPortInUse port
+    let summary = wrk 8 400 30 "./scripts/reportStatsViaJson.lua" "http://localhost:8083/"
+    killProcessOnPort port 
+    (projectName, summary)
+
 Target "Benchmark" (fun _ ->
     //Make sure nothing is on this port
     killProcessOnPort port
     projects 
-    |> Seq.map 
-        (fun (projName,run) -> 
-            use proc = run projName
-            waitForPortInUse port
-            let summary = wrk 8 400 30 "./scripts/reportStatsViaJson.lua" "http://localhost:8083/"
-            killProcessOnPort port 
-            (projName, summary)
-        )
+    |> Seq.map (runBenchmark)
     |> Seq.iter (printfn "%A")
 
 )
