@@ -159,6 +159,7 @@ let projects =
         "KestrelPlain", dotnetBuildAndRun
         "MvcOnKestrel", dotnetBuildAndRun
         "NancyOnKestrel", dotnetBuildAndRun
+        "SuaveOnKestrel", dotnetBuildAndRun
         "FreyaOnKestrel", dotnetBuildAndRun
 
         "SuaveOnCoreCLR", dotnetBuildAndRun
