@@ -151,15 +151,17 @@ let projects =
         "KatanaPlain", msbuildAndRun
         "NancyOnKatana", msbuildAndRun
         "FreyaOnKatana", msbuildAndRun
-        
+
         "NowinOnMono", msbuildAndRun
         "SuaveOnMono", msbuildAndRun
 
 
         "KestrelPlain", dotnetBuildAndRun
-        "SuaveOnCoreCLR", dotnetBuildAndRun
-        "NancyOnKestrel", dotnetBuildAndRun
         "MvcOnKestrel", dotnetBuildAndRun
+        "NancyOnKestrel", dotnetBuildAndRun
+        "FreyaOnKestrel", dotnetBuildAndRun
+
+        "SuaveOnCoreCLR", dotnetBuildAndRun
     ]
 let writeToFile filePath str =
     System.IO.File.WriteAllText(filePath, str)
