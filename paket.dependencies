@@ -1,6 +1,7 @@
 source https://www.nuget.org/api/v2
 framework: >= net45
 nuget FAKE
+nuget Freya 3.0.0-rc01 rc
 nuget FSharp.Core
 nuget Nancy.Owin
 nuget Suave

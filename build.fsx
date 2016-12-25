@@ -149,9 +149,13 @@ type Summary = {
 let projects =
     [
         "KatanaPlain", msbuildAndRun
-        "NowinOnMono", msbuildAndRun
         "NancyOnKatana", msbuildAndRun
+        "FreyaOnKatana", msbuildAndRun
+        
+        "NowinOnMono", msbuildAndRun
         "SuaveOnMono", msbuildAndRun
+
+
         "KestrelPlain", dotnetBuildAndRun
         "SuaveOnCoreCLR", dotnetBuildAndRun
         "NancyOnKestrel", dotnetBuildAndRun
