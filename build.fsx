@@ -105,7 +105,7 @@ let dotnetBuild projFile =
 
 
 let dotnetrun project =
-    let args = sprintf "run --project %s"  project
+    let args = sprintf "run --configuration Release --project %s"  project
     startProc "dotnet" args ""
 
 let dotnetBuildAndRun projName =
@@ -139,6 +139,7 @@ let projects =
         "SuaveOnMono", msbuildAndRun
         "SuaveOnCoreCLR", dotnetBuildAndRun
         "KestrelPlain", dotnetBuildAndRun
+        "MvcOnKestrel", dotnetBuildAndRun
     ]
 
 
