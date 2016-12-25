@@ -1,20 +1,26 @@
 // include Fake libs
 #r "./packages/FAKE/tools/FakeLib.dll"
+#load "./packages/build/FsLab/FsLab.fsx"
+
+open Deedle
+open FSharp.Data
+open XPlot.GoogleCharts
+open XPlot.GoogleCharts.Deedle
 
 #r "./packages/build/Newtonsoft.Json/lib/net45//Newtonsoft.Json.dll"
 open Newtonsoft.Json
 
 open Fake
+open Fake.EnvironmentHelper
 open System
 open System.IO
 open System.Diagnostics
 open System.Net.Sockets
 // Directories
-
 let srcDir = "./src"
+let reportDir = "./reports"
 
 //Helpers
-
 let waitForExit ( proc : Process) = proc.WaitForExit()
 let startProc fileName args workingDir=
     let proc = 
@@ -48,6 +54,10 @@ let kill procId =
 let killProcessOnPort port =
     getProcessIdByPort port |> Option.iter(kill >> waitForExit)
 
+
+
+let stringJoin (separator : string) (strings : string seq) =
+    String.Join(separator, strings)
 
 // Filesets
 let appReferences  =
@@ -127,9 +137,9 @@ type Error = {
 }
 
 type Summary = {
-    bytes : int64
-    duration : int64
-    requests : int64
+    bytes : int
+    duration : int // in microseconds
+    requests : int
     errors : Error
 }
 
@@ -141,7 +151,10 @@ let projects =
         "KestrelPlain", dotnetBuildAndRun
         "MvcOnKestrel", dotnetBuildAndRun
     ]
-
+let writeToFile filePath str =
+    System.IO.File.WriteAllText(filePath, str)
+let getHtml (chart : GoogleChart) =
+    chart.GetInlineHtml()
 
 let wrk threads connections duration script url=
     let args = sprintf "-t%d -c%d -d%d -s %s %s" threads connections duration script url
@@ -154,28 +167,88 @@ let wrk threads connections duration script url=
     
 let port = 8083
 
+let createPage body =
+    sprintf
+        """
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+                <title>Google Chart</title>
+                <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+                <script type="text/javascript">
+                    google.load('visualization', '1', { 'packages': ['corechart'] });
+                </script>
+            </head>
+            <body>
+                <div>%s</div>
+            </body>
+        </html>
+    """ body
+
 let runBenchmark (projectName, runner) =   
     use proc = runner projectName
     waitForPortInUse port
-    let summary = wrk 8 400 30 "./scripts/reportStatsViaJson.lua" "http://localhost:8083/"
+    let summary = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://localhost:8083/"
+    //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
     killProcessOnPort port 
     (projectName, summary)
+
+let mutable results = null
 
 Target "Benchmark" (fun _ ->
     //Make sure nothing is on this port
     killProcessOnPort port
-    projects 
-    |> Seq.map (runBenchmark)
-    |> Seq.toList
-    |> Seq.cache
-    |> Seq.iter (printfn "%A")
+    results <-
+        projects 
+        |> Seq.map (runBenchmark)
+        |> Seq.toList
+        |> Seq.cache
+)
 
+let tee f x = f x; x
+
+let createReport (results : seq<string * Summary>) =    
+    results |> Seq.iter (printfn "%A")
+    let firstResult = results |> Seq.head |> snd
+    let duration = (firstResult.duration / 1000000)
+    let reportPath = reportDir @@ "report.html"
+
+    let totalRequests =
+        results
+        |> Seq.map(fun (proj,summary) -> [(proj,summary.requests)])
+        |> Chart.Column
+        |> Chart.WithLabels (results |> Seq.map(fst))
+        |> Chart.WithTitle (sprintf "Total Requests over %d seconds" duration)
+    
+    let requestsPerSecond =
+        results
+        |> Seq.map(fun (proj,summary) -> [(proj, summary.requests/(summary.duration / 1000000))])
+        |> Chart.Column
+        |> Chart.WithLabels (results |> Seq.map(fst))
+        |> Chart.WithTitle (sprintf "Requests per second over %d seconds" duration)
+    
+    
+    [totalRequests;requestsPerSecond]
+    |> Seq.map(tee Chart.Show)
+    |> Seq.map getHtml
+    |> stringJoin ""
+    |> createPage
+    |> writeToFile reportPath
+
+
+
+    
+
+Target "GenerateReport" (fun _ ->
+    createReport results
 )
 
 // Build order
-"Clean"
-  ==> "Benchmark"
+"Benchmark"
+  ==> "GenerateReport"
 
 
 // start build
-RunTargetOrDefault "Benchmark"
+RunTargetOrDefault "GenerateReport"

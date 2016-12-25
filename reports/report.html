@@ -1,0 +1,39 @@
+
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+                <title>Google Chart</title>
+                <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+                <script type="text/javascript">
+                    google.load('visualization', '1', { 'packages': ['corechart'] });
+                </script>
+            </head>
+            <body>
+                <div><script type="text/javascript">
+    google.setOnLoadCallback(drawChart);
+            function drawChart() {
+                var data = new google.visualization.DataTable({"cols": [{"type": "string" ,"id": "Column 1" ,"label": "Column 1" }, {"type": "number" ,"id": "SuaveOnMono" ,"label": "SuaveOnMono" }, {"type": "number" ,"id": "SuaveOnCoreCLR" ,"label": "SuaveOnCoreCLR" }, {"type": "number" ,"id": "KestrelPlain" ,"label": "KestrelPlain" }, {"type": "number" ,"id": "MvcOnKestrel" ,"label": "MvcOnKestrel" }], "rows" : [{"c" : [{"v": "SuaveOnMono"}, {"v": 35516}, {}, {}, {}]}, {"c" : [{"v": "SuaveOnCoreCLR"}, {}, {"v": 177341}, {}, {}]}, {"c" : [{"v": "KestrelPlain"}, {}, {}, {"v": 647974}, {}]}, {"c" : [{"v": "MvcOnKestrel"}, {}, {}, {}, {"v": 568961}]}]});
+
+                var options = {"legend":{"position":"right"},"title":"Total Requests over 10 seconds"} 
+
+                var chart = new google.visualization.ColumnChart(document.getElementById('5bdf6178-19eb-4c77-b6c9-815be7053614'));
+                chart.draw(data, options);
+            }
+</script>
+<div id="5bdf6178-19eb-4c77-b6c9-815be7053614" style="width: 900px; height: 500px;"></div><script type="text/javascript">
+    google.setOnLoadCallback(drawChart);
+            function drawChart() {
+                var data = new google.visualization.DataTable({"cols": [{"type": "string" ,"id": "Column 1" ,"label": "Column 1" }, {"type": "number" ,"id": "SuaveOnMono" ,"label": "SuaveOnMono" }, {"type": "number" ,"id": "SuaveOnCoreCLR" ,"label": "SuaveOnCoreCLR" }, {"type": "number" ,"id": "KestrelPlain" ,"label": "KestrelPlain" }, {"type": "number" ,"id": "MvcOnKestrel" ,"label": "MvcOnKestrel" }], "rows" : [{"c" : [{"v": "SuaveOnMono"}, {"v": 3551}, {}, {}, {}]}, {"c" : [{"v": "SuaveOnCoreCLR"}, {}, {"v": 17734}, {}, {}]}, {"c" : [{"v": "KestrelPlain"}, {}, {}, {"v": 64797}, {}]}, {"c" : [{"v": "MvcOnKestrel"}, {}, {}, {}, {"v": 56896}]}]});
+
+                var options = {"legend":{"position":"right"},"title":"Requests per second over 10 seconds"} 
+
+                var chart = new google.visualization.ColumnChart(document.getElementById('68ace9b7-1651-48aa-bf24-4e5dceacc2d0'));
+                chart.draw(data, options);
+            }
+</script>
+<div id="68ace9b7-1651-48aa-bf24-4e5dceacc2d0" style="width: 900px; height: 500px;"></div></div>
+            </body>
+        </html>
+    

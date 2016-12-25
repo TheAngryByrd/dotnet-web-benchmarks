@@ -11,3 +11,4 @@ group Build
   nuget FAKE
   nuget FSharp.Formatting
   nuget Newtonsoft.Json
+  nuget FsLab
