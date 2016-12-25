@@ -5,6 +5,7 @@ nuget FSharp.Core
 nuget Suave
 nuget Microsoft.Owin.Hosting
 nuget Nowin
+nuget Microsoft.Owin.Host.HttpListener
 
 group Build
   source https://nuget.org/api/v2

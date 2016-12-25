@@ -45,7 +45,9 @@ let rec waitForPortInUse port =
 
         while client.Connected |> not do
             client.Connect("127.0.0.1",port)
-    with e -> waitForPortInUse port
+    with e -> 
+        client.Close()
+        waitForPortInUse port
  
 let kill procId =
     printfn "killing process id %d" procId
@@ -146,6 +148,7 @@ type Summary = {
 
 let projects =
     [
+        "KatanaPlain", msbuildAndRun
         "NowinOnMono", msbuildAndRun
         "SuaveOnMono", msbuildAndRun
         "SuaveOnCoreCLR", dotnetBuildAndRun
@@ -189,6 +192,7 @@ let createPage body =
     """ body
 
 let runBenchmark (projectName, runner) =   
+    Async.Sleep(5000) |> Async.RunSynchronously
     use proc = runner projectName
     waitForPortInUse port
     let summary = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://localhost:8083/"
