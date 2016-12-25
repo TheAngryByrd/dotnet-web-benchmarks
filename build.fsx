@@ -23,7 +23,6 @@ let reportDir = "./reports"
 //Helpers
 let waitForExit ( proc : Process) = proc.WaitForExit()
 let startProc fileName args workingDir=
-    printfn "Starting %s %s" fileName args
     let proc = 
         ProcessStartInfo(FileName = fileName, Arguments = args, WorkingDirectory = workingDir, UseShellExecute = false) 
         |> Process.Start
@@ -155,6 +154,7 @@ let projects =
         "SuaveOnMono", msbuildAndRun
         "KestrelPlain", dotnetBuildAndRun
         "SuaveOnCoreCLR", dotnetBuildAndRun
+        "NancyOnKestrel", dotnetBuildAndRun
         "MvcOnKestrel", dotnetBuildAndRun
     ]
 let writeToFile filePath str =
@@ -195,11 +195,13 @@ let createPage body =
 
 let runBenchmark (projectName, runner) =   
     Async.Sleep(5000) |> Async.RunSynchronously
+    logfn "---------------> Starting %s <---------------" projectName
     use proc = runner projectName
     waitForPortInUse port
     let summary = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://localhost:8083/"
     //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
     killProcessOnPort port 
+    logfn "---------------> Finished %s <---------------" projectName
     (projectName, summary)
 
 let mutable results = null
