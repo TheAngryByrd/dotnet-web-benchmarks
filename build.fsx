@@ -138,6 +138,7 @@ let projects =
     [
         "SuaveOnMono", msbuildAndRun
         "SuaveOnCoreCLR", dotnetBuildAndRun
+        "KestrelPlain", dotnetBuildAndRun
     ]
 
 
@@ -164,6 +165,8 @@ Target "Benchmark" (fun _ ->
     killProcessOnPort port
     projects 
     |> Seq.map (runBenchmark)
+    |> Seq.toList
+    |> Seq.cache
     |> Seq.iter (printfn "%A")
 
 )
