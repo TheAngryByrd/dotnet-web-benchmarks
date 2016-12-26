@@ -391,3 +391,7 @@ paket-files/
 # JetBrains Rider
 .idea/
 *.sln.iml
+
+reports/report.html
+
+FAKE_CACHE_build_6AB7D008.dll
