@@ -1,5 +1,6 @@
 module FreyaOnMono
-
+open System
+open System.Threading
 open Freya.Core
 open Freya.Machines.Http
 open Freya.Routers.Uri.Template
@@ -27,9 +28,13 @@ open Microsoft.Owin.Hosting
 
 [<EntryPoint>]
 let main _ =
-    let url = "http://localhost:8083"
+
+    let url = "http://127.0.0.1:8083"
     printfn "Listening on %s" url
     let _ = WebApp.Start<HelloWorld> (url)
-    let _ = Console.ReadLine ()
-
+    let quitEvent = new ManualResetEvent(false)
+    Console.CancelKeyPress.Add(fun (args) -> 
+        quitEvent.Set()
+        args.Cancel <- true)
+    quitEvent.WaitOne() |> ignore
     0

@@ -38,16 +38,17 @@ let getProcessIdByPort port =
                         ) (TimeSpan.FromMinutes(1.))
     result.Messages |> Seq.tryHead |> Option.map int
 
-let rec waitForPortInUse port =
-    use client = new TcpClient()
-    try
-        client.Connect("127.0.0.1",port)
+let waitForPortInUse  port =
+    let mutable portInUse = false
 
-        while client.Connected |> not do
+    while not portInUse do  
+        use client = new TcpClient()
+        try
             client.Connect("127.0.0.1",port)
-    with e -> 
-        client.Close()
-        waitForPortInUse port
+            portInUse <- client.Connected 
+            client.Close()
+        with e -> 
+            client.Close()
  
 let kill procId =
     printfn "killing process id %d" procId
@@ -159,7 +160,7 @@ let projects =
         "MvcOnKestrel", dotnetBuildAndRun
         "NancyOnKestrel", dotnetBuildAndRun
         "SuaveOnKestrel", dotnetBuildAndRun
-        "FreyaOnKestrel", dotnetBuildAndRun
+    //    "FreyaOnKestrel", dotnetBuildAndRun
 
         "SuaveOnCoreCLR", dotnetBuildAndRun
     ]
@@ -203,11 +204,13 @@ let createPage body =
 
 let runBenchmark (projectName, runner) =   
     try
-        Async.Sleep(5000) |> Async.RunSynchronously
+
         logfn "---------------> Starting %s <---------------" projectName
+        killProcessOnPort port 
         use proc = runner projectName
+
         waitForPortInUse port
-        let summary = wrk 8 400 30 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
+        let summary = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
         //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
         killProcessOnPort port 
         logfn "---------------> Finished %s <---------------" projectName
@@ -253,7 +256,7 @@ let createReport (results : seq<string * Summary>) =
     
     
     [totalRequests;requestsPerSecond]
-    |> Seq.map(tee Chart.Show)
+   // |> Seq.map(tee Chart.Show)
     |> Seq.map getHtml
     |> stringJoin ""
     |> createPage

@@ -25,7 +25,7 @@
         "Microsoft.AspNetCore.Owin": "1.1.0",
 
        "Microsoft.NETCore.Portable.Compatibility": "1.0.1",
-        "Freya" : "3.0.0-rc01"
+        "Freya" : "3.0.0-*"
       },
       "imports": [
         "portable-net45+win8+dnxcore50",
