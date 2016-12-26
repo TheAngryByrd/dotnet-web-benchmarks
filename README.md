@@ -13,7 +13,16 @@ Benchmarks for various dotnet/mono web frameworks
   * [Dotnet Core](https://www.microsoft.com/net/core#macos)
   
 ### Running
+#### Locally
+
 ```
 build.sh
 ``` 
 will compile and run all the projects on port 8083.  It will then run wrk against the web server.  It will then generate a report page in reports and show them.
+
+
+#### Docker
+
+```
+docker build -t web-benchmarks . && docker run web-webbencmarks
+```
