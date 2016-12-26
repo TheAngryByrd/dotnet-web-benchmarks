@@ -155,7 +155,6 @@ let projects =
         "NowinOnMono", msbuildAndRun
         "SuaveOnMono", msbuildAndRun
 
-
         "KestrelPlain", dotnetBuildAndRun
         "MvcOnKestrel", dotnetBuildAndRun
         "NancyOnKestrel", dotnetBuildAndRun
@@ -176,7 +175,9 @@ let wrk threads connections duration script url=
                         psi.FileName <- "wrk"
                         psi.Arguments <-args
                     ) (TimeSpan.FromMinutes(1.))
-    JsonConvert.DeserializeObject<Summary>(result.Messages |> Seq.last)
+    if result.OK
+    then JsonConvert.DeserializeObject<Summary>(result.Messages |> Seq.last)
+    else result.Errors |> stringJoin "" |> failwith 
     
 let port = 8083
 
@@ -201,15 +202,19 @@ let createPage body =
     """ body
 
 let runBenchmark (projectName, runner) =   
-    Async.Sleep(5000) |> Async.RunSynchronously
-    logfn "---------------> Starting %s <---------------" projectName
-    use proc = runner projectName
-    waitForPortInUse port
-    let summary = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://localhost:8083/"
-    //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
-    killProcessOnPort port 
-    logfn "---------------> Finished %s <---------------" projectName
-    (projectName, summary)
+    try
+        Async.Sleep(5000) |> Async.RunSynchronously
+        logfn "---------------> Starting %s <---------------" projectName
+        use proc = runner projectName
+        waitForPortInUse port
+        let summary = wrk 8 400 30 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
+        //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
+        killProcessOnPort port 
+        logfn "---------------> Finished %s <---------------" projectName
+        Some (projectName, summary)
+    with e -> 
+        eprintfn "%A" e
+        None
 
 let mutable results = null
 
@@ -219,6 +224,7 @@ Target "Benchmark" (fun _ ->
     results <-
         projects 
         |> Seq.map (runBenchmark)
+        |> Seq.choose id
         |> Seq.toList
         |> Seq.cache
 )
@@ -234,14 +240,14 @@ let createReport (results : seq<string * Summary>) =
     let totalRequests =
         results
         |> Seq.map(fun (proj,summary) -> [(proj,summary.requests)])
-        |> Chart.Column
+        |> Chart.Bar
         |> Chart.WithLabels (results |> Seq.map(fst))
         |> Chart.WithTitle (sprintf "Total Requests over %d seconds" duration)
     
     let requestsPerSecond =
         results
         |> Seq.map(fun (proj,summary) -> [(proj, summary.requests/(summary.duration / 1000000))])
-        |> Chart.Column
+        |> Chart.Bar
         |> Chart.WithLabels (results |> Seq.map(fst))
         |> Chart.WithTitle (sprintf "Requests per second over %d seconds" duration)
     
