@@ -133,14 +133,6 @@ let dotnetRestore projFile =
         { c with
             Project = projFile
         })
-let dotnetBuild projFile =
-    dotnetRestore projFile
-    DotNetCli.Build (fun c ->
-        { c with
-            Configuration = "Release"
-            Project = projFile
-        })
-
 
 let dotnetrun project =
     let args = sprintf "run --configuration Release --project %s"  project
@@ -148,7 +140,8 @@ let dotnetrun project =
 
 let dotnetBuildAndRun projName =
     projName |> getProjFile |> dotnetRestore
-    //run will build if necessary
+    // FSharp proj always build https://github.com/dotnet/cli/issues/3996
+    // run will build if necessary, so don't need to build before run
     projName |> getProjFile |> dotnetrun
 
 
@@ -241,7 +234,10 @@ let projects =
        Full "FreyaOnKatana"
 
        Full "NowinOnMono"
+       Full "NancyOnNowin" //Can't seem to handle the load
+
        Full "SuaveOnMono"
+       Full "NancyOnSuave"
 
        Core "KestrelPlain"
        Core "MvcOnKestrel"
