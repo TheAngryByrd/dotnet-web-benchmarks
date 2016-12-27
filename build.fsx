@@ -55,7 +55,14 @@ let mono args = execProcAndReturnMessages "mono" args
 let dotnet args = execProcAndReturnMessages "dotnet" args
 
 
-
+let getProcessor () =
+    let result =
+        if EnvironmentHelper.isMacOS
+        then execProcAndReturnMessages "sysctl" "-n machdep.cpu.brand_string" |> getProcessMessages 
+        elif EnvironmentHelper.isLinux 
+        then execProcAndReturnMessages "cat" "/proc/cpuinfo | grep 'model name' | uniq" |> getProcessMessages 
+        else failwith "Not supported OS"
+    result |> Seq.head
 
 let getProcessIdByPort port =
     let result = lsof (sprintf "-ti tcp:%d" port)
@@ -148,6 +155,7 @@ let dotnetBuildAndRun projName =
 // --------------------------------------------------------------------------------------
 
 type SystemInfo = {
+    CPUModel : string
     ProcessorCount : int
     MonoVersion : string seq
     DotnetVersion : string seq
@@ -159,6 +167,7 @@ let getSystemInfo () =
     let monoVersion = mono "--version" |> getProcessMessages 
     let dotnetVersion = dotnet "--version" |> getProcessMessages 
     {
+        CPUModel =  getProcessor ()
         ProcessorCount = machineInfo.ProcessorCount
         MonoVersion = monoVersion
         DotnetVersion = dotnetVersion
@@ -177,6 +186,7 @@ let table trs =
     |> sprintf "<table>%s</table>"
 
 let systemInfoToHtmlTable (sysInfo:SystemInfo) =
+    let cpu = sysInfo.CPUModel |> td
     let os = sysInfo.OperatingSystem |> td
     let proc = sysInfo.ProcessorCount |> string |> td
     let monoV = sysInfo.MonoVersion |> Seq.head|> td
@@ -184,6 +194,7 @@ let systemInfoToHtmlTable (sysInfo:SystemInfo) =
 
     table
         [
+            tr [td "CPU"; cpu]
             tr [td "Operating System" ;os;]
             tr [td "Processor Count" ;proc;]
             tr [td "Mono Version" ;monoV;]
