@@ -147,7 +147,8 @@ let dotnetrun project =
     startProc "dotnet" args ""
 
 let dotnetBuildAndRun projName =
-    projName |> getProjFile |> dotnetBuild
+    projName |> getProjFile |> dotnetRestore
+    //run will build if necessary
     projName |> getProjFile |> dotnetrun
 
 
