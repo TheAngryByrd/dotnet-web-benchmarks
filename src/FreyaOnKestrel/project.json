@@ -2,6 +2,7 @@
   "version": "1.0.0-*",
   "buildOptions": {
     "debugType": "portable",
+    "optimize": true,
     "emitEntryPoint": true,
     "compilerName": "fsc",
     "compile": {
