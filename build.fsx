@@ -20,7 +20,12 @@ open System.Net.Sockets
 let srcDir = "./src"
 let reportDir = "./reports"
 
-//Helpers
+
+let stringJoin (separator : string) (strings : string seq) =
+    String.Join(separator, strings)
+
+
+//Proc helpers
 let waitForExit ( proc : Process) = proc.WaitForExit()
 let startProc fileName args workingDir=
     let proc = 
@@ -29,13 +34,31 @@ let startProc fileName args workingDir=
 
     proc 
 
+let execProcAndReturnMessages filename args =
+    ExecProcessAndReturnMessages 
+                    (fun psi ->
+                        psi.FileName <- filename
+                        psi.Arguments <-args
+                    ) (TimeSpan.FromMinutes(1.))
+
+let getProcessMessages (procResult : ProcessResult) =
+    procResult.Messages
+
+//System Helpers
+let lsof args = execProcAndReturnMessages "lsof" args
+ 
+let kill procId = 
+    execProcAndReturnMessages "kill" (procId |> sprintf "-9 %d") |> ignore
+
+let mono args = execProcAndReturnMessages "mono" args
+
+let dotnet args = execProcAndReturnMessages "dotnet" args
+
+
+
+
 let getProcessIdByPort port =
-    let result =
-        ExecProcessAndReturnMessages 
-                        (fun psi ->
-                            psi.FileName <- "lsof"
-                            psi.Arguments <-(sprintf "-ti tcp:%d" port)
-                        ) (TimeSpan.FromMinutes(1.))
+    let result = lsof (sprintf "-ti tcp:%d" port)
     result.Messages |> Seq.tryHead |> Option.map int
 
 let waitForPortInUse  port =
@@ -49,18 +72,12 @@ let waitForPortInUse  port =
             client.Close()
         with e -> 
             client.Close()
- 
-let kill procId =
-    printfn "killing process id %d" procId
-    startProc "kill" (procId |> sprintf "-9 %d") "" |> waitForExit
+
 
 let killProcessOnPort port =
     getProcessIdByPort port |> Option.iter kill 
 
 
-
-let stringJoin (separator : string) (strings : string seq) =
-    String.Join(separator, strings)
 
 // Filesets
 let appReferences  =
@@ -130,6 +147,52 @@ let dotnetBuildAndRun projName =
 
 // --------------------------------------------------------------------------------------
 
+type SystemInfo = {
+    ProcessorCount : int
+    MonoVersion : string seq
+    DotnetVersion : string seq
+    OperatingSystem : string
+}
+
+let getSystemInfo () =
+    let machineInfo = EnvironmentHelper.getMachineEnvironment ()
+    let monoVersion = mono "--version" |> getProcessMessages 
+    let dotnetVersion = dotnet "--version" |> getProcessMessages 
+    {
+        ProcessorCount = machineInfo.ProcessorCount
+        MonoVersion = monoVersion
+        DotnetVersion = dotnetVersion
+        OperatingSystem = machineInfo.OperatingSystem
+    }
+
+let td inner = 
+    sprintf "<td>%s</td>" inner
+let tr tds=
+    tds 
+    |> stringJoin ""
+    |> sprintf "<tr>%s</tr>"
+let table trs =
+    trs 
+    |> stringJoin ""
+    |> sprintf "<table>%s</table>"
+
+let systemInfoToHtmlTable (sysInfo:SystemInfo) =
+    let os = sysInfo.OperatingSystem |> td
+    let proc = sysInfo.ProcessorCount |> string |> td
+    let monoV = sysInfo.MonoVersion |> Seq.head|> td
+    let dotnetV = sysInfo.DotnetVersion|> Seq.head |> td
+
+    table
+        [
+            tr [td "Operating System" ;os;]
+            tr [td "Processor Count" ;proc;]
+            tr [td "Mono Version" ;monoV;]
+            tr [td "Dotnet Version" ;dotnetV;]
+        ]
+
+
+
+
 //https://github.com/wg/wrk/blob/master/SCRIPTING
 //{"bytes":217834904,"duration":30099407,"errors":{"connect":0,"read":182,"status":0,"timeout":0,"write":0},"requests":1785532}
 type Error = {
@@ -198,7 +261,7 @@ let wrk threads connections duration script url=
     
 let port = 8083
 
-let createPage body =
+let createPage systemInfo charts =
     sprintf
         """
         <!DOCTYPE html>
@@ -211,12 +274,32 @@ let createPage body =
                 <script type="text/javascript">
                     google.load('visualization', '1', { 'packages': ['corechart'] });
                 </script>
+                <style>
+                    table {
+                        font-family: arial, sans-serif;
+                        border-collapse: collapse;
+                    }
+                    td, th {
+                        border: 1px solid #dddddd;
+                        text-align: left;
+                        padding: 8px;
+                    }
+
+                    tr:nth-child(even) {
+                        background-color: #dddddd;
+                    }
+                </style>
+
             </head>
             <body>
+                <h3> SystemInfo </h3>
+                    %s
+                <br>
+                <h3> Results </h3>
                 <div>%s</div>
             </body>
         </html>
-    """ body
+    """ systemInfo charts
 
 let runBenchmark (projectName, runner) =   
     try
@@ -255,18 +338,20 @@ let createReport (results : seq<string * Summary * Latency>) =
     let duration = (firstResult.duration / 1000000)
     let reportPath = reportDir @@ "report.html"
     let labels = results |> Seq.map(fun (proj,_,_) -> proj)
+
+
     let totalRequests =
         results
         |> Seq.map(fun (proj,summary,latency) -> [(proj,summary.requests)])
         |> Chart.Bar
-        //|> Chart.WithLabels (["results"])
+        |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Total Requests over %d seconds" duration)
     
     let requestsPerSecond =
         results
         |> Seq.map(fun (proj,summary,_) -> [(proj, summary.requests/(summary.duration / 1000000))])
         |> Chart.Bar
-        //|> Chart.WithLabels (["results"])
+        |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Requests per second over %d seconds" duration)
 
     let latency =
@@ -278,15 +363,13 @@ let createReport (results : seq<string * Summary * Latency>) =
     
     
     [totalRequests;requestsPerSecond;latency]
-    |> Seq.map(tee Chart.Show)
     |> Seq.map getHtml
     |> stringJoin ""
-    |> createPage
+    |> createPage (systemInfoToHtmlTable(getSystemInfo ()))
     |> writeToFile reportPath
+    |> fun _ ->   System.Diagnostics.Process.Start((Path.GetFullPath(reportPath)))  
+    |> ignore
 
-
-
-    
 
 Target "GenerateReport" (fun _ ->
     createReport results
