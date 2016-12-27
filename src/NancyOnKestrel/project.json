@@ -6,7 +6,6 @@
     "compilerName": "fsc",
     "compile": {
       "includeFiles": [
-        "App.fs",
         "Program.fs"
       ]
     }
