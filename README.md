@@ -24,5 +24,7 @@ will compile and run all the projects on port 8083.  It will then run wrk agains
 #### Docker
 
 ```
-docker build -t web-benchmarks . && docker run web-webbencmarks
+./dockerbuild.sh
+or
+docker build -t web-benchmarks . && docker run web-benchmarks
 ```

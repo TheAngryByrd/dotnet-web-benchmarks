@@ -1,0 +1,1 @@
+docker build -t web-benchmarks . && docker run web-benchmarks
