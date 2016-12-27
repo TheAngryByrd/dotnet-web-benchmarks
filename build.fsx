@@ -309,7 +309,7 @@ let runBenchmark (projectName, runner) =
         use proc = runner projectName
 
         waitForPortInUse port
-        let (summary, latency) = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
+        let (summary, latency) = wrk 8 400 30 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
         //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
         killProcessOnPort port 
         logfn "---------------> Finished %s <---------------" projectName
@@ -354,15 +354,21 @@ let createReport (results : seq<string * Summary * Latency>) =
         |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Requests per second over %d seconds" duration)
 
-    let latency =
+        
+    let meanLatency =
         results
-        |> Seq.map(fun (proj,_,latency) -> [("Min", latency.min/1000.); ("Max", latency.max/1000.); ("Mean", latency.mean/1000.); ] )
+        |> Seq.map(fun (proj,_,latency) -> 
+            [
+                // ("Min", latency.min/1000.); 
+                // ("Max", latency.max/1000.); 
+                ("Mean", latency.mean/1000.); 
+            ])
         |> Chart.Bar
         |> Chart.WithLabels (labels)
-        |> Chart.WithTitle (sprintf "Latency in milliseconds over %d seconds" duration)
+        |> Chart.WithTitle (sprintf "Mean latency in milliseconds over %d seconds" duration)
     
     
-    [totalRequests;requestsPerSecond;latency]
+    [totalRequests;requestsPerSecond;meanLatency]
     |> Seq.map getHtml
     |> stringJoin ""
     |> createPage (systemInfoToHtmlTable(getSystemInfo ()))
