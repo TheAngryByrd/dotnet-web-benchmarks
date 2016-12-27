@@ -1,0 +1,4 @@
+FSharp.Core
+Nancy.Owin
+Microsoft.Owin.Hosting
+Suave
