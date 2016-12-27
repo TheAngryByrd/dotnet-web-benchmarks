@@ -352,14 +352,14 @@ let createReport (results : seq<string * Summary * Latency>) =
 
     let totalRequests =
         results
-        |> Seq.map(fun (proj,summary,latency) -> [(proj,summary.requests)])
+        |> Seq.map(fun (proj,summary,latency) -> [("Total",summary.requests)])
         |> Chart.Bar
         |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Total Requests over %d seconds" duration)
     
     let requestsPerSecond =
         results
-        |> Seq.map(fun (proj,summary,_) -> [(proj, summary.requests/(summary.duration / 1000000))])
+        |> Seq.map(fun (proj,summary,_) -> [("Req/s", summary.requests/(summary.duration / 1000000))])
         |> Chart.Bar
         |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Requests per second over %d seconds" duration)
