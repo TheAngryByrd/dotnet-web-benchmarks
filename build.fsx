@@ -52,10 +52,10 @@ let waitForPortInUse  port =
  
 let kill procId =
     printfn "killing process id %d" procId
-    startProc "kill" (procId |> sprintf "-9 %d") ""
+    startProc "kill" (procId |> sprintf "-9 %d") "" |> waitForExit
 
 let killProcessOnPort port =
-    getProcessIdByPort port |> Option.iter(kill >> waitForExit)
+    getProcessIdByPort port |> Option.iter kill 
 
 
 
@@ -113,6 +113,7 @@ let dotnetBuild projFile =
     dotnetRestore projFile
     DotNetCli.Build (fun c ->
         { c with
+            Configuration = "Release"
             Project = projFile
         })
 
@@ -129,7 +130,7 @@ let dotnetBuildAndRun projName =
 
 // --------------------------------------------------------------------------------------
 
-//https://github.com/wg/wrk/blob/50305ed1d89408c26067a970dcd5d9dbea19de9d/SCRIPTING
+//https://github.com/wg/wrk/blob/master/SCRIPTING
 //{"bytes":217834904,"duration":30099407,"errors":{"connect":0,"read":182,"status":0,"timeout":0,"write":0},"requests":1785532}
 type Error = {
     connect : int
@@ -146,6 +147,13 @@ type Summary = {
     errors : Error
 }
 
+type Latency = {
+    min : float
+    max : float
+    mean : float
+    stdev : float
+}
+
 
 let projects =
     [
@@ -160,7 +168,7 @@ let projects =
         "MvcOnKestrel", dotnetBuildAndRun
         "NancyOnKestrel", dotnetBuildAndRun
         "SuaveOnKestrel", dotnetBuildAndRun
-    //    "FreyaOnKestrel", dotnetBuildAndRun
+       // "FreyaOnKestrel", dotnetBuildAndRun // does not work on osx/linux
 
         "SuaveOnCoreCLR", dotnetBuildAndRun
     ]
@@ -175,9 +183,17 @@ let wrk threads connections duration script url=
                     (fun psi ->
                         psi.FileName <- "wrk"
                         psi.Arguments <-args
-                    ) (TimeSpan.FromMinutes(1.))
+                    ) (TimeSpan.FromMinutes(5.))
     if result.OK
-    then JsonConvert.DeserializeObject<Summary>(result.Messages |> Seq.last)
+    then
+        let revResults = 
+            result.Messages
+            |> Seq.rev
+            |> Seq.cache
+        (
+            JsonConvert.DeserializeObject<Summary>(revResults |> Seq.head), 
+            (JsonConvert.DeserializeObject<Latency>(revResults |> Seq.skip 1 |> Seq.head))
+        )
     else result.Errors |> stringJoin "" |> failwith 
     
 let port = 8083
@@ -210,11 +226,11 @@ let runBenchmark (projectName, runner) =
         use proc = runner projectName
 
         waitForPortInUse port
-        let summary = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
+        let (summary, latency) = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
         //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
         killProcessOnPort port 
         logfn "---------------> Finished %s <---------------" projectName
-        Some (projectName, summary)
+        Some (projectName, summary, latency)
     with e -> 
         eprintfn "%A" e
         None
@@ -226,37 +242,43 @@ Target "Benchmark" (fun _ ->
     killProcessOnPort port
     results <-
         projects 
-        |> Seq.map (runBenchmark)
-        |> Seq.choose id
+        |> Seq.choose (runBenchmark)
         |> Seq.toList
         |> Seq.cache
 )
 
 let tee f x = f x; x
 
-let createReport (results : seq<string * Summary>) =    
+let createReport (results : seq<string * Summary * Latency>) =    
     results |> Seq.iter (printfn "%A")
-    let firstResult = results |> Seq.head |> snd
+    let ( _,firstResult,_) = results |> Seq.head 
     let duration = (firstResult.duration / 1000000)
     let reportPath = reportDir @@ "report.html"
-
+    let labels = results |> Seq.map(fun (proj,_,_) -> proj)
     let totalRequests =
         results
-        |> Seq.map(fun (proj,summary) -> [(proj,summary.requests)])
+        |> Seq.map(fun (proj,summary,latency) -> [(proj,summary.requests)])
         |> Chart.Bar
-        |> Chart.WithLabels (results |> Seq.map(fst))
+        //|> Chart.WithLabels (["results"])
         |> Chart.WithTitle (sprintf "Total Requests over %d seconds" duration)
     
     let requestsPerSecond =
         results
-        |> Seq.map(fun (proj,summary) -> [(proj, summary.requests/(summary.duration / 1000000))])
+        |> Seq.map(fun (proj,summary,_) -> [(proj, summary.requests/(summary.duration / 1000000))])
         |> Chart.Bar
-        |> Chart.WithLabels (results |> Seq.map(fst))
+        //|> Chart.WithLabels (["results"])
         |> Chart.WithTitle (sprintf "Requests per second over %d seconds" duration)
+
+    let latency =
+        results
+        |> Seq.map(fun (proj,_,latency) -> [("Min", latency.min/1000.); ("Max", latency.max/1000.); ("Mean", latency.mean/1000.); ] )
+        |> Chart.Bar
+        |> Chart.WithLabels (labels)
+        |> Chart.WithTitle (sprintf "Latency in milliseconds over %d seconds" duration)
     
     
-    [totalRequests;requestsPerSecond]
-   // |> Seq.map(tee Chart.Show)
+    [totalRequests;requestsPerSecond;latency]
+    |> Seq.map(tee Chart.Show)
     |> Seq.map getHtml
     |> stringJoin ""
     |> createPage
