@@ -227,23 +227,27 @@ type Latency = {
     mean : float
     stdev : float
 }
+type ProjectName = string
+type Framework =
+| Full of ProjectName
+| Core of ProjectName
 
 
 let projects =
     [
-        "KatanaPlain", msbuildAndRun
-        "NancyOnKatana", msbuildAndRun
-        "FreyaOnKatana", msbuildAndRun
+       Full "KatanaPlain"
+       Full "NancyOnKatana"
+       Full "FreyaOnKatana"
 
-        "NowinOnMono", msbuildAndRun
-        "SuaveOnMono", msbuildAndRun
+       Full "NowinOnMono"
+       Full "SuaveOnMono"
 
-        "KestrelPlain", dotnetBuildAndRun
-        "MvcOnKestrel", dotnetBuildAndRun
-        "NancyOnKestrel", dotnetBuildAndRun
-        "SuaveOnKestrel", dotnetBuildAndRun
-        "SuaveOnCoreCLR", dotnetBuildAndRun
-        //"FreyaOnKestrel", dotnetBuildAndRun // does not work on osx/linux
+       Core "KestrelPlain"
+       Core "MvcOnKestrel"
+       Core "NancyOnKestrel"
+       Core "SuaveOnKestrel"
+       Core "SuaveOnCoreCLR"
+        // Core "FreyaOnKestrel" // does not work on osx/linux -- curl: (18) transfer closed with outstanding read data remaining
     ]
 let writeToFile filePath str =
     System.IO.File.WriteAllText(filePath, str)
@@ -319,7 +323,7 @@ let runBenchmark (projectName, runner) =
         use proc = runner projectName
 
         waitForPortInUse port
-        let (summary, latency) = wrk 8 400 30 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
+        let (summary, latency) = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
         //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
         killProcessOnPort port 
         logfn "---------------> Finished %s <---------------" projectName
@@ -335,6 +339,11 @@ Target "Benchmark" (fun _ ->
     killProcessOnPort port
     results <-
         projects 
+        |> Seq.map(fun framework ->
+            match framework with
+            | Full proj -> (proj,msbuildAndRun)
+            | Core proj -> (proj, dotnetBuildAndRun)
+        )
         |> Seq.choose (runBenchmark)
         |> Seq.toList
         |> Seq.cache
@@ -342,7 +351,7 @@ Target "Benchmark" (fun _ ->
 
 let tee f x = f x; x
 
-let createReport (results : seq<string * Summary * Latency>) =    
+let createReport (results : seq<ProjectName * Summary * Latency>) =    
     results |> Seq.iter (printfn "%A")
     let ( _,firstResult,_) = results |> Seq.head 
     let duration = (firstResult.duration / 1000000)
@@ -352,14 +361,14 @@ let createReport (results : seq<string * Summary * Latency>) =
 
     let totalRequests =
         results
-        |> Seq.map(fun (proj,summary,latency) -> [("Total",summary.requests)])
+        |> Seq.map(fun (_,summary,latency) -> [("Total",summary.requests)])
         |> Chart.Bar
         |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Total Requests over %d seconds" duration)
     
     let requestsPerSecond =
         results
-        |> Seq.map(fun (proj,summary,_) -> [("Req/s", summary.requests/(summary.duration / 1000000))])
+        |> Seq.map(fun (_,summary,_) -> [("Req/s", summary.requests/(summary.duration / 1000000))])
         |> Chart.Bar
         |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Requests per second over %d seconds" duration)
@@ -367,7 +376,7 @@ let createReport (results : seq<string * Summary * Latency>) =
         
     let meanLatency =
         results
-        |> Seq.map(fun (proj,_,latency) -> 
+        |> Seq.map(fun (_,_,latency) -> 
             [
                 // ("Min", latency.min/1000.); 
                 // ("Max", latency.max/1000.); 
