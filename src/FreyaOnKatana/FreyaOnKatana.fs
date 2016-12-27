@@ -34,7 +34,7 @@ let main _ =
     let _ = WebApp.Start<HelloWorld> (url)
     let quitEvent = new ManualResetEvent(false)
     Console.CancelKeyPress.Add(fun (args) -> 
-        quitEvent.Set()
+        quitEvent.Set() |> ignore
         args.Cancel <- true)
     quitEvent.WaitOne() |> ignore
     0
