@@ -20,7 +20,7 @@
           "type": "platform",
           "version": "1.1.0"
         },
-        "Microsoft.FSharp.Core.netcore": "1.0.0-alpha-160629",
+        "Microsoft.FSharp.Core.netcore": "1.0.0-alpha-*",
         "Microsoft.AspNetCore.Server.Kestrel": "1.1.0-*",
         "Microsoft.AspNetCore.Owin": "1.1.0",
         "Suave": "2.0.0-*",
