@@ -112,7 +112,7 @@ Target "Clean" (fun _ ->
 )
 
 let msbuild projFile =
-    MSBuildDebug "" "Build" [projFile]
+    MSBuildRelease "" "Build" [projFile]
     |> ignore
 
 
@@ -231,9 +231,8 @@ let projects =
         "MvcOnKestrel", dotnetBuildAndRun
         "NancyOnKestrel", dotnetBuildAndRun
         "SuaveOnKestrel", dotnetBuildAndRun
-       // "FreyaOnKestrel", dotnetBuildAndRun // does not work on osx/linux
-
         "SuaveOnCoreCLR", dotnetBuildAndRun
+        //"FreyaOnKestrel", dotnetBuildAndRun // does not work on osx/linux
     ]
 let writeToFile filePath str =
     System.IO.File.WriteAllText(filePath, str)
