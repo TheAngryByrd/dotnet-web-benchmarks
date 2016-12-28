@@ -230,6 +230,7 @@ type Framework =
 let projects =
     [
        Full "KatanaPlain"
+       Full "WebApiOnKatana"
        Full "NancyOnKatana"
        Full "FreyaOnKatana"
 
@@ -398,7 +399,8 @@ Target "GenerateReport" (fun _ ->
 )
 
 // Build order
-"Benchmark"
+"Clean"
+  ==> "Benchmark"
   ==> "GenerateReport"
 
 

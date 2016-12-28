@@ -3,6 +3,7 @@ framework: >= net45
 nuget FAKE
 nuget Freya 3.0.0-rc01 rc
 nuget FSharp.Core
+nuget Microsoft.AspNet.WebApi.OwinSelfHost
 nuget Nancy.Owin
 nuget Suave
 nuget Microsoft.Owin.Hosting
