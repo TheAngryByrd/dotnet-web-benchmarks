@@ -9,7 +9,7 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>NancyOnNowin</RootNamespace>
     <AssemblyName>NancyOnNowin</AssemblyName>
-    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <TargetFSharpCoreVersion>4.4.0.0</TargetFSharpCoreVersion>
     <Name>NancyOnNowin</Name>
