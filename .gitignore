@@ -392,6 +392,6 @@ paket-files/
 .idea/
 *.sln.iml
 
-reports/report.html
+reports/report*
 
 FAKE_CACHE_build_6AB7D008.dll

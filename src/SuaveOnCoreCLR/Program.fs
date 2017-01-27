@@ -6,5 +6,7 @@ open Suave.Http
 
 [<EntryPoint>]
 let main argv =
-    startWebServer defaultConfig (OK "Hello World from CoreCLR!")
+    let config = {defaultConfig with 
+                    bindings = [ HttpBinding.createSimple HTTP "127.0.0.1" 8083 ]}
+    startWebServer config (OK "Hello World from CoreCLR!")
     0

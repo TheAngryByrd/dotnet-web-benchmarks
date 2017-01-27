@@ -3,7 +3,7 @@ NUGET
   remote: https://www.nuget.org/api/v2
     Aether (8.1.2)
     Anat (1.0)
-    FAKE (4.47.1)
+    FAKE (4.48)
     FParsec (1.0.2)
     Freya (3.0.0-rc01)
       Freya.Machines.Http (>= 3.0.0-rc < 3.1.0-rc)
@@ -139,8 +139,8 @@ NUGET
     Newtonsoft.Json (9.0.1)
     Nowin (0.25)
     Owin (1.0)
-    Suave (1.1.3)
-      FSharp.Core (>= 3.1.2.5)
+    Suave (2.0)
+      FSharp.Core (>= 4.0.0.1)
 
 GROUP Build
 NUGET
@@ -152,7 +152,7 @@ NUGET
       R.NET.Community.FSharp (>= 1.6.4)
       RProvider (>= 1.1.13)
     DynamicInterop (0.7.4)
-    FAKE (4.47.1)
+    FAKE (4.48)
     FSharp.Charting (0.90.14)
     FSharp.Compiler.Service (2.0.0.6)
     FSharp.Core (4.0.0.1)
