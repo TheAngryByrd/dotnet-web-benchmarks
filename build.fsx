@@ -29,7 +29,7 @@ let stringJoin (separator : string) (strings : string seq) =
 let waitForExit ( proc : Process) = proc.WaitForExit()
 let startProc fileName args workingDir=
     let proc = 
-        ProcessStartInfo(FileName = fileName, Arguments = args, WorkingDirectory = workingDir, UseShellExecute = false) 
+        ProcessStartInfo(FileName = fileName, Arguments = args, WorkingDirectory = workingDir, UseShellExecute = true) 
         |> Process.Start
 
     proc 
@@ -123,9 +123,14 @@ let msbuild projFile =
     |> ignore
 
 
-let msbuildAndRun projName =
+let msbuildAndRun useLLVM projName =
     projName |> getProjFile |> msbuild 
-    startProc (getExe projName) "" ""
+    let args = [
+        (if useLLVM then "--llvm" else "")
+        (getExe projName)
+    ]
+
+    startProc "mono" (args |> stringJoin " ") ""
     
 
 let dotnetRestore projFile =    
@@ -224,21 +229,36 @@ type Latency = {
 type ProjectName = string
 type Framework =
 | Full of ProjectName
+| FullLLVM of ProjectName
 | Core of ProjectName
 
 
 let projects =
     [
        Full "KatanaPlain"
-       Full "WebApiOnKatana"
+       FullLLVM "KatanaPlain"
+
+       Full "WebApiOnKatana"   
+       FullLLVM "WebApiOnKatana"
+
        Full "NancyOnKatana"
+       FullLLVM "NancyOnKatana"
+       
        Full "FreyaOnKatana"
+       FullLLVM "FreyaOnKatana"
+
 
        Full "NowinOnMono"
+       FullLLVM "NowinOnMono"
+
        Full "NancyOnNowin" //Can't seem to handle the load
+       FullLLVM "NancyOnNowin" //Can't seem to handle the load
 
        Full "SuaveOnMono"
+       FullLLVM "SuaveOnMono"
+
        Full "NancyOnSuave"
+       FullLLVM "NancyOnSuave"
 
        Core "KestrelPlain"
        Core "MvcOnKestrel"
@@ -313,19 +333,20 @@ let createPage systemInfo charts =
         </html>
     """ systemInfo charts
 
-let runBenchmark (projectName, runner) =   
+let runBenchmark (projectName, friendlyName, runner) =   
     try
 
-        logfn "---------------> Starting %s <---------------" projectName
+        logfn "---------------> Starting %s <---------------" friendlyName
         killProcessOnPort port 
         use proc = runner projectName
 
         waitForPortInUse port
-        let (summary, latency) = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
+        let (summary, latency) = wrk 8 400 30 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
         //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
         killProcessOnPort port 
-        logfn "---------------> Finished %s <---------------" projectName
-        Some (projectName, summary, latency)
+
+        logfn "---------------> Finished %s <---------------" friendlyName
+        Some (friendlyName, summary, latency)
     with e -> 
         eprintfn "%A" e
         None
@@ -339,8 +360,9 @@ Target "Benchmark" (fun _ ->
         projects 
         |> Seq.map(fun framework ->
             match framework with
-            | Full proj -> (proj,msbuildAndRun)
-            | Core proj -> (proj, dotnetBuildAndRun)
+            | Full proj -> (proj, proj, msbuildAndRun false)
+            | FullLLVM proj -> (proj, (sprintf "%s-llvm" proj), msbuildAndRun true)
+            | Core proj -> (proj, proj, dotnetBuildAndRun)
         )
         |> Seq.choose (runBenchmark)
         |> Seq.toList
@@ -353,7 +375,7 @@ let createReport (results : seq<ProjectName * Summary * Latency>) =
     results |> Seq.iter (printfn "%A")
     let ( _,firstResult,_) = results |> Seq.head 
     let duration = (firstResult.duration / 1000000)
-    let reportPath = reportDir @@ "report.html"
+    let reportPath = reportDir @@ (sprintf "report-%s.html" (DateTimeOffset.UtcNow.ToString("o")))
     let labels = results |> Seq.map(fun (proj,_,_) -> proj)
 
 
