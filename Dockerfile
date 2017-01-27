@@ -56,7 +56,7 @@ RUN mkdir warmup \
 
 ENV MONO_PREFIX=/mono
 
-RUN git clone git://github.com/mono/llvm.git && \
+RUN git clone https://github.com/mono/llvm.git && \
     cd llvm && \
     ./configure --prefix=$MONO_PREFIX --enable-optimized --enable-targets="x86 x86_64" && \
     make && make install && \
