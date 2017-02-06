@@ -240,12 +240,16 @@ let projects =
 
        Full "WebApiOnKatana"   
        FullLLVM "WebApiOnKatana"
+       Full "WebApiOnNowin"   
+       FullLLVM "WebApiOnNowin"
 
        Full "NancyOnKatana"
        FullLLVM "NancyOnKatana"
        
        Full "FreyaOnKatana"
        FullLLVM "FreyaOnKatana"
+       Full "FreyaOnNowin"
+       FullLLVM "FreyaOnNowin"
 
 
        Full "NowinOnMono"

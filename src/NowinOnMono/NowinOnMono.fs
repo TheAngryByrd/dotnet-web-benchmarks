@@ -1,9 +1,9 @@
 namespace App
 open System
 open System.Threading
-open System
 open Owin
 open Microsoft.Owin.Hosting
+
 module Main =
     type Startup () =
         member this.Configuration(app :IAppBuilder) =
