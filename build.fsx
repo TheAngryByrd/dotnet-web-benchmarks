@@ -269,6 +269,7 @@ let projects =
        Core "NancyOnKestrel"
        Core "SuaveOnKestrel"
        Core "SuaveOnCoreCLR"
+       Core "AspNetCoreLambdaOnKestrel"
         // Core "FreyaOnKestrel" // does not work on osx/linux -- curl: (18) transfer closed with outstanding read data remaining
     ]
 let writeToFile filePath str =
