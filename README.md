@@ -32,6 +32,8 @@ docker build -t web-benchmarks . && docker run web-benchmarks
 
 ### Results
 
+Take with much salt. Maybe garlic and hot sauce. These are same machine, simple route, text only responses.  
+
 Key | Value 
 --- | --- 
 CPU | Intel(R) Core(TM) i7-4870HQ CPU @ 2.50GHz
