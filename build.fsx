@@ -14,15 +14,72 @@ open Fake
 open Fake.EnvironmentHelper
 open System
 open System.IO
+open System.Text
 open System.Diagnostics
 open System.Net.Sockets
 // Directories
 let srcDir = "./src"
 let reportDir = "./reports"
 
+module Printer =
+    type UntypedRecord = (string * obj) list // label * value list
+
+    let prettyPrintTable (f : 'Record -> UntypedRecord) (template : 'Record) (table : 'Record list) =
+    // the template argument acts as a means to extract all labels, even if the table is empty. Any non-null value should do
+        let labels = f template |> List.map fst
+        let header = labels |> List.map (fun h -> h, h :> obj)
+        let untypedTable = List.map f table
+
+        let rec traverseEntryLengths (map : Map<string,int>) (line : UntypedRecord) =
+            match line with
+            | [] -> map
+            | (label, value) :: rest ->
+                let currentLength = defaultArg (map.TryFind label) 0
+                let map' = map.Add (label, max currentLength <| value.ToString().Length + 2)
+                traverseEntryLengths map' rest
+
+        let lengthMap = List.fold traverseEntryLengths Map.empty (header :: untypedTable)
+
+        let printRecord (record : UntypedRecord) =
+            let printEntry (label,value) = //   value   |
+                let field = value.ToString()
+                let whites = lengthMap.[label] - field.Length
+                let gapL = 1
+                let gapR = whites - gapL
+                String(' ',gapL) + field + String(' ',gapR) + "|"
+
+            List.fold (fun str entry -> str + printEntry entry) "|" record
+
+        let separator = 
+            let printColSep label = // ---------+
+                String('-', lengthMap.[label]) + "+"
+
+            List.fold (fun str label -> str + printColSep label) "+" labels 
+
+        let builder = new StringBuilder()
+        let append txt = builder.AppendLine txt |> ignore
+
+        do
+            append separator
+            append <| printRecord header
+            append separator
+
+            for record in untypedTable do
+                append <| printRecord record
+                append separator
+
+        builder.ToString()
 
 let stringJoin (separator : string) (strings : string seq) =
     String.Join(separator, strings)
+
+[<Measure>] type ms
+[<Measure>] type s
+
+let convertMStoS (ms : int<ms>) =
+    ms / 1000000<ms/s>
+
+[<Measure>] type req
 
 
 //Proc helpers
@@ -215,10 +272,14 @@ type Error = {
 
 type Summary = {
     bytes : int
-    duration : int // in microseconds
-    requests : int
+    duration : int<ms> // in microseconds
+    requests : int<req>
     errors : Error
 }
+    with 
+        member this.RequestsPerSecond () =         
+            this.requests/( convertMStoS this.duration )
+
 
 type Latency = {
     min : float
@@ -236,33 +297,33 @@ type Framework =
 let projects =
     [
        Full "KatanaPlain"
-       FullLLVM "KatanaPlain"
+    //    FullLLVM "KatanaPlain"
 
        Full "WebApiOnKatana"   
-       FullLLVM "WebApiOnKatana"
+    //    FullLLVM "WebApiOnKatana"
        Full "WebApiOnNowin"   
-       FullLLVM "WebApiOnNowin"
+    //    FullLLVM "WebApiOnNowin"
 
        Full "NancyOnKatana"
-       FullLLVM "NancyOnKatana"
+    //    FullLLVM "NancyOnKatana"
        
        Full "FreyaOnKatana"
-       FullLLVM "FreyaOnKatana"
+    //    FullLLVM "FreyaOnKatana"
        Full "FreyaOnNowin"
-       FullLLVM "FreyaOnNowin"
+    //    FullLLVM "FreyaOnNowin"
 
 
        Full "NowinOnMono"
-       FullLLVM "NowinOnMono"
+    //    FullLLVM "NowinOnMono"
 
        Full "NancyOnNowin" //Can't seem to handle the load
-       FullLLVM "NancyOnNowin" //Can't seem to handle the load
+    //    FullLLVM "NancyOnNowin" //Can't seem to handle the load
 
        Full "SuaveOnMono"
-       FullLLVM "SuaveOnMono"
+    //    FullLLVM "SuaveOnMono"
 
        Full "NancyOnSuave"
-       FullLLVM "NancyOnSuave"
+    //    FullLLVM "NancyOnSuave"
 
        Core "KestrelPlain"
        Core "MvcOnKestrel"
@@ -338,6 +399,8 @@ let createPage systemInfo charts =
         </html>
     """ systemInfo charts
 
+
+
 let runBenchmark (projectName, friendlyName, runner) =   
     try
 
@@ -376,30 +439,66 @@ Target "Benchmark" (fun _ ->
 
 let tee f x = f x; x
 
-let createReport (results : seq<ProjectName * Summary * Latency>) =    
+
+let dumpAllDataToConsole (results : seq<ProjectName * Summary * Latency>)  =  
     results |> Seq.iter (printfn "%A")
+
+
+
+type TextReport = {
+    ProjectName : ProjectName
+    TotalRequests : int<req>
+    Duration: int<ms>
+    RequestsPerSecond : int<req/s>
+}
+let toTextReport name total duration reqs = {
+    ProjectName = name
+    TotalRequests = total
+    Duration = duration
+    RequestsPerSecond = reqs
+}
+
+let toTableFormatter (p : TextReport) = 
+    [ 
+        ("ProjectName", p.ProjectName :> obj) 
+        ("TotalRequests", p.TotalRequests :> obj) 
+        ("Duration (s)", (p.Duration |> convertMStoS ) :> obj) 
+        ("Req/s", p.RequestsPerSecond :> obj) 
+    ]
+
+let printTable = Printer.prettyPrintTable toTableFormatter {ProjectName="" ; TotalRequests=0<req>; Duration=0<ms>; RequestsPerSecond=0<req/s>}
+let createTextReport (results : seq<ProjectName * Summary * Latency>) =
+    results
+    |> Seq.map(fun (p,s,_) -> toTextReport p s.requests s.duration (s.RequestsPerSecond()))
+    |> Seq.sortByDescending(fun tr -> tr.RequestsPerSecond)
+    |> Seq.toList
+    |> printTable
+    |> printfn "%s"
+
+let createHtmlReport (results : seq<ProjectName * Summary * Latency>) =  
     let ( _,firstResult,_) = results |> Seq.head 
     let duration = (firstResult.duration / 1000000)
     let reportPath = reportDir @@ (sprintf "report-%s.html" (DateTimeOffset.UtcNow.ToString("o")))
     let labels = results |> Seq.map(fun (proj,_,_) -> proj)
 
 
-    let totalRequests =
+
+    let totalRequestsChart =
         results
         |> Seq.map(fun (_,summary,latency) -> [("Total",summary.requests)])
         |> Chart.Bar
         |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Total Requests over %d seconds" duration)
     
-    let requestsPerSecond =
+    let requestsPerSecondChart =
         results
-        |> Seq.map(fun (_,summary,_) -> [("Req/s", summary.requests/(summary.duration / 1000000))])
+        |> Seq.map(fun (_,summary,_) -> [("Req/s", summary.RequestsPerSecond())])
         |> Chart.Bar
         |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Requests per second over %d seconds" duration)
 
         
-    let meanLatency =
+    let meanLatencyChart =
         results
         |> Seq.map(fun (_,_,latency) -> 
             [
@@ -412,7 +511,7 @@ let createReport (results : seq<ProjectName * Summary * Latency>) =
         |> Chart.WithTitle (sprintf "Mean latency in milliseconds over %d seconds" duration)
     
     
-    [totalRequests;requestsPerSecond;meanLatency]
+    [totalRequestsChart;requestsPerSecondChart;meanLatencyChart]
     |> Seq.map getHtml
     |> stringJoin ""
     |> createPage (systemInfoToHtmlTable(getSystemInfo ()))
@@ -420,9 +519,17 @@ let createReport (results : seq<ProjectName * Summary * Latency>) =
     |> fun _ ->   System.Diagnostics.Process.Start((Path.GetFullPath(reportPath)))  
     |> ignore
 
+let invoke f = f()
+
 
 Target "GenerateReport" (fun _ ->
-    createReport results
+    [ 
+        dumpAllDataToConsole
+        createTextReport
+        createHtmlReport
+    ]
+    |> Seq.map(fun f -> fun () -> f results)
+    |> Seq.iter invoke
 )
 
 // Build order
