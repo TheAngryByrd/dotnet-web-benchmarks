@@ -46,7 +46,7 @@ Dotnet Version |1.0.0-preview2-1-003177
 ProjectName | Total Requests | Duration (s) |  Req/s
 --- | --- | --- | --- 
 KestrelPlain              | 793996        | 10           | 79399 
-AspNetCoreLambdaOnKestrel | 790936        | 10           | 79093 
+Giraffe | 790936        | 10           | 79093 
 SuaveOnKestrel            | 738309        | 10           | 73830 
 MvcOnKestrel              | 716942        | 10           | 71694 
 NancyOnKestrel            | 215632        | 10           | 21563 
