@@ -22,7 +22,7 @@
         },
         "Microsoft.FSharp.Core.netcore": "1.0.0-*",
         "Microsoft.AspNetCore.Server.Kestrel": "1.1.0-*",
-        "AspNetCore.Lambda" : "0.1.0-alpha005"
+        "Giraffe" : "0.1.0-*"
       }
     }
   }

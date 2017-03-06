@@ -296,6 +296,7 @@ type Framework =
 
 let projects =
     [
+    // Mono
        Full "KatanaPlain"
     //    FullLLVM "KatanaPlain"
 
@@ -325,12 +326,14 @@ let projects =
        Full "NancyOnSuave"
     //    FullLLVM "NancyOnSuave"
 
+
+        //.net core
        Core "KestrelPlain"
        Core "MvcOnKestrel"
        Core "NancyOnKestrel"
        Core "SuaveOnKestrel"
        Core "SuaveOnCoreCLR"
-       Core "AspNetCoreLambdaOnKestrel"
+       Core "GiraffeOnKestrel"
         // Core "FreyaOnKestrel" // does not work on osx/linux -- curl: (18) transfer closed with outstanding read data remaining
     ]
 let writeToFile filePath str =
