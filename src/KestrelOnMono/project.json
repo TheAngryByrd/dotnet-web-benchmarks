@@ -1,0 +1,29 @@
+{
+  "version": "1.0.0-*",
+  "buildOptions": {
+    "debugType": "portable",
+    "emitEntryPoint": true,
+    "compilerName": "fsc",
+    "compile": {
+      "includeFiles": [
+        "Program.fs"
+      ]
+    }
+  },
+  "tools": {
+    "dotnet-compile-fsc": "1.0.0-preview2.1-*"
+  },
+  "runtimes": {
+    "osx.10.10-x64": {},
+    "debian.8-x64": {}
+  },
+  "frameworks": {
+    "net461": {
+      "dependencies": {
+          "FSharp.Core" : "4.0.1.7-alpha",
+          "Microsoft.AspNetCore.Server.Kestrel": "1.1.0-*",
+          "System.Native": "1.0.0-rc4-004707"
+      }
+    }
+  }
+}
