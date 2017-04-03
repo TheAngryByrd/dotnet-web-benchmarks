@@ -34,6 +34,8 @@ docker build -t web-benchmarks . && docker run web-benchmarks
 
 Take with much salt. Maybe garlic and hot sauce. These are same machine, simple route, text only responses.  
 
+#### My System Info
+
 Key | Value 
 --- | --- 
 CPU | Intel(R) Core(TM) i7-4870HQ CPU @ 2.50GHz
@@ -42,22 +44,30 @@ Processor Count |	8
 Mono Version	| Mono JIT compiler version 4.6.2 (mono-4.6.0-branch/ac9e222 Wed Dec 14 17:02:09 EST 2016)
 Dotnet Version |1.0.0-preview2-1-003177
 
+#### My Numbers  
 
-ProjectName | Total Requests | Duration (s) |  Req/s
---- | --- | --- | --- 
-KestrelPlain              | 793996        | 10           | 79399 
-Giraffe | 790936        | 10           | 79093 
-SuaveOnKestrel            | 738309        | 10           | 73830 
-MvcOnKestrel              | 716942        | 10           | 71694 
-NancyOnKestrel            | 215632        | 10           | 21563 
-NowinOnMono               | 179826        | 10           | 17982 
-KatanaPlain               | 118931        | 10           | 11893 
-FreyaOnNowin              | 68510         | 10           | 6851  
-WebApiOnNowin             | 66755         | 10           | 6675  
-FreyaOnKatana             | 55295         | 10           | 5529  
-WebApiOnKatana            | 54866         | 10           | 5486  
-NancyOnKatana             | 53558         | 10           | 5355  
-SuaveOnMono               | 24082         | 10           | 2408  
-SuaveOnCoreCLR            | 20153         | 10           | 2015  
-NancyOnSuave              | 6703          | 10           | 670   
-NancyOnNowin              | 0             | 10           | 0     
+     WebServer | WebFramework | IsMono | TargetFramework | TotalRequests | Duration | RequestsPerSecond
+     --------- | ------------ | ------ | --------------- | -------------:| --------:| -----------------:
+     Kestrel   | MVC          | False  | netcoreapp1.1   |        721996 |       10 |             72199
+     Kestrel   | Plain        | False  | netcoreapp1.1   |        718370 |       10 |             71837
+     Kestrel   | Giraffe      | False  | netcoreapp1.1   |        691345 |       10 |             69134
+     Kestrel   | Suave        | False  | netcoreapp1.1   |        602124 |       10 |             60212
+     Kestrel   | Suave        | True   | net462          |        216679 |       10 |             21667
+     Kestrel   | Nancy        | False  | netcoreapp1.1   |        200550 |       10 |             20055
+     Kestrel   | Plain        | True   | net462          |        165394 |       10 |             16539
+     Kestrel   | MVC          | True   | net462          |        144021 |       10 |             14402
+     Nowin     | WebApi       | True   | net462          |        127152 |       10 |             12715
+     Nowin     | Plain        | True   | net462          |        104240 |       10 |             10424
+     Katana    | Plain        | True   | net462          |         71495 |       10 |              7149
+     Katana    | WebApi       | True   | net462          |         56375 |       10 |              5637
+     Nowin     | Freya        | True   | net462          |         54737 |       10 |              5473
+     Katana    | Freya        | True   | net462          |         45958 |       10 |              4595
+     Kestrel   | Nancy        | True   | net462          |         43897 |       10 |              4389
+     Katana    | Nancy        | True   | net462          |         37571 |       10 |              3757
+     Nowin     | Nancy        | True   | net462          |         28585 |       10 |              2858
+     Suave     | Plain        | False  | netcoreapp1.1   |         20682 |       10 |              2068
+     Suave     | Plain        | True   | net462          |         19897 |       10 |              1989
+     Suave     | WebApi       | True   | net462          |          8470 |       10 |               847
+     Suave     | Freya        | True   | net462          |          2026 |       10 |               202
+     Suave     | Nancy        | True   | net462          |           314 |       10 |                31
+

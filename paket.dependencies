@@ -11,6 +11,8 @@ nuget Nowin
 nuget Microsoft.Owin.Host.HttpListener
 
 group Build
+
+  framework: >= net45
   source https://nuget.org/api/v2
   
   nuget SourceLink.Fake
@@ -18,3 +20,4 @@ group Build
   nuget FSharp.Formatting
   nuget Newtonsoft.Json
   nuget FsLab
+  nuget MarkdownLog
