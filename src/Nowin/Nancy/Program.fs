@@ -4,7 +4,6 @@ open System.Threading
 open Owin
 open Microsoft.Owin.Hosting
 
-
 module App =
     open Nancy
     type HelloWorldModule() as this =

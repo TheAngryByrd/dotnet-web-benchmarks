@@ -42,7 +42,7 @@ CPU | Intel(R) Core(TM) i7-4870HQ CPU @ 2.50GHz
 Operating System | Unix 15.6.0.0 (OSX/macOS)
 Processor Count |	8
 Mono Version	| Mono JIT compiler version 4.6.2 (mono-4.6.0-branch/ac9e222 Wed Dec 14 17:02:09 EST 2016)
-Dotnet Version |1.0.0-preview2-1-003177
+Dotnet Version | 1.0.1
 
 #### My Numbers  
 

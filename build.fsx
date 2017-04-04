@@ -1,5 +1,5 @@
 // include Fake libs
-#r "./packages/FAKE/tools/FakeLib.dll"
+#r "./packages/build/FAKE/tools/FakeLib.dll"
 #load "./packages/build/FsLab/FsLab.fsx"
 #r "./packages/build/MarkdownLog/lib/portable-net45+win+wp8+wpa81/MarkdownLog.dll"
 open Deedle
@@ -342,7 +342,7 @@ let runBenchmark (projectInfo : ProjectInfo) =
         killProcessOnPort port 
         use proc = selectRunner projectInfo
         waitForPortInUse port
-        let (summary, latency) = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
+        let (summary, latency) = wrk 8 400 30 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
         proc.Kill()
         //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
         killProcessOnPort port 
