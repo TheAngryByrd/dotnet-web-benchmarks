@@ -1,22 +1,16 @@
-﻿namespace App 
+﻿namespace App
 open System
 open System.Threading
 open Owin
 open Microsoft.Owin.Hosting
-module NancyOnMono =
-
-    open Nancy
-    type HelloWorldModule() as this =
-        inherit NancyModule()
-        do
-            this.Get.["/"] <- fun _ -> "Hello From Nancy on Mono!" :> obj 
-
-
-module Main = 
-
+module Main =
     type Startup () =
         member this.Configuration(app :IAppBuilder) =
-            app.UseNancy() |> ignore
+            app.Run(
+                fun context -> 
+                    context.Response.ContentType <- "text/plain"
+                    context.Response.WriteAsync("Hello World!")
+            )
             ()
 
     [<EntryPoint>]

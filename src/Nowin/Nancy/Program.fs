@@ -9,7 +9,7 @@ module App =
     type HelloWorldModule() as this =
         inherit NancyModule()
         do
-            this.Get("/", fun _ -> "Hello From Nancy on Nowin!" :> obj )
+            this.Get("/", fun _ -> "Hello World!":> obj )
 
 
 module Main = 

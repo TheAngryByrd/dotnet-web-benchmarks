@@ -9,7 +9,7 @@ open Freya.Routers.Uri.Template
 let hello =
     freya {
 
-        return Represent.text (sprintf "Hello %s!" "from freya on Katana!") }
+        return Represent.text ("Hello World!") }
 
 let machine =
     freyaMachine {

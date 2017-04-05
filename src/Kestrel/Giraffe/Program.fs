@@ -10,7 +10,7 @@ open Giraffe.Middleware
 
 let webApp = 
     choose [
-        GET  >=> route "/" >=> text "Hello from AspNetCore Lambda on Kestrel!"
+        GET  >=> route "/" >=> text "Hello World!"
 
     ]
 [<EntryPoint>]

@@ -12,6 +12,6 @@
     <PackageReference Include="Nowin" Version="0.26.0" />
     <PackageReference Include="Microsoft.Owin.Hosting" Version="3.0.1" />
     <PackageReference Include="Freya" Version="3.0.0-rc01" />
-    <DotNetCliToolReference Include="dotnet-mono" Version="0.1.1-alpha002" />
+    <DotNetCliToolReference Include="dotnet-mono" Version="0.1.1" />
   </ItemGroup>
 </Project>

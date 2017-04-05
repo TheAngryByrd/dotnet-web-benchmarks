@@ -8,5 +8,5 @@ open Suave.Http
 let main argv =
     let config = {defaultConfig with 
                     bindings = [ HttpBinding.createSimple HTTP "127.0.0.1" 8083 ]}
-    startWebServer config (OK "Hello World from Suave on Mono!")
+    startWebServer config (OK "Hello World!")
     0

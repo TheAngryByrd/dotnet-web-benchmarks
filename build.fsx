@@ -41,11 +41,6 @@ let srcGlob = "src/**/**/*.fsproj"
 
 let reportDir = "./reports"
 
-let tee f x = f x; x
-
-module Seq =
-    let tee (f : 'a -> unit) (s : seq<'a>) =
-        s |> Seq.map(tee f)
 
 let stringJoin (separator : string) (strings : string seq) =
     String.Join(separator, strings)
@@ -85,7 +80,11 @@ let getProcessMessages (procResult : ProcessResult) =
 let lsof args = execProcAndReturnMessages "lsof" args
  
 let kill procId = 
-    execProcAndReturnMessages "kill" (procId |> sprintf "-9 %d") |> ignore
+    for i in 1 .. 10 do
+        execProcAndReturnMessages "kill" (procId |> sprintf "-SIGINT %d") |> ignore
+        Async.Sleep(100) |> Async.RunSynchronously
+
+    execProcAndReturnMessages "kill" (procId |> sprintf "-%d") |> ignore
 
 let mono args = execProcAndReturnMessages "mono" args
 
@@ -109,7 +108,7 @@ let waitForPortInUse  port =
     let mutable portInUse = false
     let sw = System.Diagnostics.Stopwatch.StartNew()
     while not portInUse do  
-        if sw.ElapsedMilliseconds > 20000L then failwith "waited enough, must have failed"
+        if sw.ElapsedMilliseconds > 30000L then failwith "waited enough, must have failed"
         match getProcessIdByPort port with
         | Some _ -> portInUse <- true
         | _ -> ()
@@ -118,8 +117,7 @@ let waitForPortInUse  port =
 
 
 let killProcessOnPort port =
-    for i in 1 .. 10 do
-        getProcessIdByPort port |> Option.iter kill 
+    getProcessIdByPort port |> Option.iter kill 
 
 
 
@@ -342,12 +340,11 @@ let runBenchmark (projectInfo : ProjectInfo) =
         killProcessOnPort port 
         use proc = selectRunner projectInfo
         waitForPortInUse port
-        let (summary, latency) = wrk 8 400 30 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
-        proc.Kill()
+        let (summary, latency) = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
+        
         //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
         killProcessOnPort port 
-
-
+        proc.Id |> kill
         logfn "---------------> Finished %s <---------------" projectInfo.FriendlyName
         Some (projectInfo, summary, latency)
     with e -> 
@@ -380,12 +377,17 @@ let gatherProjectInfo (projFile : string) =
     })
  
 
+Target "DotnetRestore" (fun _ ->
+        !! srcGlob
+        |> Seq.toArray
+        |> Array.Parallel.iter dotnetRestore
+ )
+
 Target "Benchmark" (fun _ ->
     //Make sure nothing is on this port
     killProcessOnPort port
     results <-
         !! srcGlob
-        |> Seq.tee dotnetRestore
         |> Seq.toList
         |> Seq.cache
         |> Seq.collect gatherProjectInfo
@@ -491,6 +493,7 @@ Target "GenerateReport" (fun _ ->
 
 // Build order
 "Clean"
+  ==> "DotnetRestore"
   ==> "Benchmark"
   ==> "GenerateReport"
 

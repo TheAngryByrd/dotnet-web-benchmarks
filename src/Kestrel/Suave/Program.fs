@@ -11,7 +11,7 @@ open Suave.AspNetCore
 
 module App =
     open Suave.Filters
-    let suaveApp = GET >=> path "/" >=> OK "Hello world from Suave on Kestrel" 
+    let suaveApp = GET >=> path "/" >=> OK "Hello World!"
 
     type Startup () =
         member __.Configure (app : IApplicationBuilder) =

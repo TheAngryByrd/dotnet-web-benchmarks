@@ -8,7 +8,7 @@ open System.Web.Http
 type HomeController() =
     inherit ApiController()
     member this.Get() =
-        "Hello from WebApi on Katana!"
+        "Hello World!"
                 
 type HttpRouteDefaults = { Controller : string; Id : obj }
 type Startup () =

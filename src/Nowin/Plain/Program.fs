@@ -10,7 +10,7 @@ module Main =
             app.Run(
                 fun context -> 
                     context.Response.ContentType <- "text/plain"
-                    context.Response.WriteAsync("hello from nowin plain!")
+                    context.Response.WriteAsync("Hello World!")
             )
             ()
 

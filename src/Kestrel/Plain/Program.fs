@@ -10,7 +10,7 @@ let main argv =
     WebHostBuilder()
         .UseUrls("http://0.0.0.0:8083")
         .UseKestrel()
-        .Configure(fun a -> a.Run(fun c -> c.Response.WriteAsync("Hello from Plain Kestrel!")))
+        .Configure(fun a -> a.Run(fun c -> c.Response.WriteAsync("Hello World!")))
         .Build()
         .Run()
 
