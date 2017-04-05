@@ -29,5 +29,5 @@ else
   if [ $exit_code -ne 0 ]; then
   	exit $exit_code
   fi
-  mono packages/FAKE/tools/FAKE.exe $@ --nocache --fsiargs -d:MONO build.fsx
+  mono packages/build/FAKE/tools/FAKE.exe $@ --nocache --fsiargs -d:MONO build.fsx
 fi

@@ -1,7 +1,7 @@
 // include Fake libs
-#r "./packages/FAKE/tools/FakeLib.dll"
+#r "./packages/build/FAKE/tools/FakeLib.dll"
 #load "./packages/build/FsLab/FsLab.fsx"
-
+#r "./packages/build/MarkdownLog/lib/portable-net45+win+wp8+wpa81/MarkdownLog.dll"
 open Deedle
 open FSharp.Data
 open XPlot.GoogleCharts
@@ -17,58 +17,30 @@ open System.IO
 open System.Text
 open System.Diagnostics
 open System.Net.Sockets
+
+
+#if MONO
+let inferFrameworkPathOverride () =
+    let mscorlib = "mscorlib.dll"
+    let possibleFrameworkPaths =
+        [ 
+            "/Library/Frameworks/Mono.framework/Versions/Current/lib/mono/4.5/"
+            "/usr/local/Cellar/mono/4.6.12/lib/mono/4.5/"
+            "/usr/lib/mono/4.5/"
+        ]
+
+    possibleFrameworkPaths
+    |> Seq.find (fun p ->IO.File.Exists(p @@ mscorlib))
+
+Environment.SetEnvironmentVariable("FrameworkPathOverride", inferFrameworkPathOverride ())
+#endif
+
 // Directories
 let srcDir = "./src"
+let srcGlob = "src/**/**/*.fsproj"
+
 let reportDir = "./reports"
 
-module Printer =
-    type UntypedRecord = (string * obj) list // label * value list
-
-    let prettyPrintTable (f : 'Record -> UntypedRecord) (template : 'Record) (table : 'Record list) =
-    // the template argument acts as a means to extract all labels, even if the table is empty. Any non-null value should do
-        let labels = f template |> List.map fst
-        let header = labels |> List.map (fun h -> h, h :> obj)
-        let untypedTable = List.map f table
-
-        let rec traverseEntryLengths (map : Map<string,int>) (line : UntypedRecord) =
-            match line with
-            | [] -> map
-            | (label, value) :: rest ->
-                let currentLength = defaultArg (map.TryFind label) 0
-                let map' = map.Add (label, max currentLength <| value.ToString().Length + 2)
-                traverseEntryLengths map' rest
-
-        let lengthMap = List.fold traverseEntryLengths Map.empty (header :: untypedTable)
-
-        let printRecord (record : UntypedRecord) =
-            let printEntry (label,value) = //   value   |
-                let field = value.ToString()
-                let whites = lengthMap.[label] - field.Length
-                let gapL = 1
-                let gapR = whites - gapL
-                String(' ',gapL) + field + String(' ',gapR) + "|"
-
-            List.fold (fun str entry -> str + printEntry entry) "|" record
-
-        let separator = 
-            let printColSep label = // ---------+
-                String('-', lengthMap.[label]) + "+"
-
-            List.fold (fun str label -> str + printColSep label) "+" labels 
-
-        let builder = new StringBuilder()
-        let append txt = builder.AppendLine txt |> ignore
-
-        do
-            append separator
-            append <| printRecord header
-            append separator
-
-            for record in untypedTable do
-                append <| printRecord record
-                append separator
-
-        builder.ToString()
 
 let stringJoin (separator : string) (strings : string seq) =
     String.Join(separator, strings)
@@ -91,6 +63,9 @@ let startProc fileName args workingDir=
 
     proc 
 
+let startProc' fileName (args : #seq<string>) workingDir =
+    startProc fileName (String.Join(" ",args)) workingDir
+
 let execProcAndReturnMessages filename args =
     ExecProcessAndReturnMessages 
                     (fun psi ->
@@ -105,7 +80,11 @@ let getProcessMessages (procResult : ProcessResult) =
 let lsof args = execProcAndReturnMessages "lsof" args
  
 let kill procId = 
-    execProcAndReturnMessages "kill" (procId |> sprintf "-9 %d") |> ignore
+    for i in 1 .. 10 do
+        execProcAndReturnMessages "kill" (procId |> sprintf "-SIGINT %d") |> ignore
+        Async.Sleep(100) |> Async.RunSynchronously
+
+    execProcAndReturnMessages "kill" (procId |> sprintf "-%d") |> ignore
 
 let mono args = execProcAndReturnMessages "mono" args
 
@@ -127,15 +106,14 @@ let getProcessIdByPort port =
 
 let waitForPortInUse  port =
     let mutable portInUse = false
-
+    let sw = System.Diagnostics.Stopwatch.StartNew()
     while not portInUse do  
-        use client = new TcpClient()
-        try
-            client.Connect("127.0.0.1",port)
-            portInUse <- client.Connected 
-            client.Close()
-        with e -> 
-            client.Close()
+        if sw.ElapsedMilliseconds > 30000L then failwith "waited enough, must have failed"
+        match getProcessIdByPort port with
+        | Some _ -> portInUse <- true
+        | _ -> ()
+        Async.Sleep(1000) |> Async.RunSynchronously
+        
 
 
 let killProcessOnPort port =
@@ -143,70 +121,23 @@ let killProcessOnPort port =
 
 
 
-// Filesets
-let appReferences  =
-    !! "/**/*.csproj"
-    ++ "/**/*.fsproj"
-    ++ "/**/project.json"
-
-let getProjFile proj  =
-    !! (sprintf "src/%s/*.csproj" proj)
-    ++ (sprintf "src/%s/*.fsproj" proj)
-    ++ (sprintf "src/%s/project.json" proj)
-    |> Seq.head
-
-
-let getExe proj  =
-    !! (sprintf "src/**/%s.exe" proj)
-    |> Seq.head
-
-// version info
-let version = "0.1"  // or retrieve from CI server
-
 // Targets
 Target "Clean" (fun _ ->
-    (appReferences
-    |> Seq.map(fun f -> (System.IO.Path.GetDirectoryName f) @@ "bin")
-    |> Seq.toList)
-    @
-    (appReferences
-    |> Seq.map(fun f -> (System.IO.Path.GetDirectoryName f) @@ "obj")
-    |> Seq.toList)
+    !! srcGlob
+    |> Seq.collect(fun p -> 
+        ["bin";"obj"] 
+        |> Seq.map(fun sp ->
+             IO.Path.GetDirectoryName p @@ sp)
+        )
     |> CleanDirs
 )
 
-let msbuild projFile =
-    MSBuildRelease "" "Build" [projFile]
-    |> ignore
-
-
-let msbuildAndRun useLLVM projName =
-    projName |> getProjFile |> msbuild 
-    let args = [
-        (if useLLVM then "--llvm" else "")
-        (getExe projName)
-    ]
-
-    startProc "mono" (args |> stringJoin " ") ""
-    
 
 let dotnetRestore projFile =    
     DotNetCli.Restore (fun c ->
         { c with
             Project = projFile
         })
-
-let dotnetrun project =
-    let args = sprintf "run --configuration Release --project %s"  project
-    startProc "dotnet" args ""
-
-let dotnetBuildAndRun projName =
-    projName |> getProjFile |> dotnetRestore
-    // FSharp proj always build https://github.com/dotnet/cli/issues/3996
-    // run will build if necessary, so don't need to build before run
-    projName |> getProjFile |> dotnetrun
-
-
 
 // --------------------------------------------------------------------------------------
 
@@ -257,6 +188,14 @@ let systemInfoToHtmlTable (sysInfo:SystemInfo) =
             tr [td "Dotnet Version" ;dotnetV;]
         ]
 
+type ProjectInfo = {
+    ProjectFile : string
+    TargetFramework : string
+    IsMono : bool
+    WebServer : string
+    WebFramework : string
+}
+    with member x.FriendlyName = sprintf "%s/%s on %s" x.WebServer x.WebFramework x.TargetFramework
 
 
 
@@ -288,54 +227,7 @@ type Latency = {
     stdev : float
 }
 type ProjectName = string
-type Framework =
-| Full of ProjectName
-| FullLLVM of ProjectName
-| Core of ProjectName
 
-
-let projects =
-    [
-    // Mono
-       Full "KatanaPlain"
-    //    FullLLVM "KatanaPlain"
-
-       Full "WebApiOnKatana"   
-    //    FullLLVM "WebApiOnKatana"
-       Full "WebApiOnNowin"   
-    //    FullLLVM "WebApiOnNowin"
-
-       Full "NancyOnKatana"
-    //    FullLLVM "NancyOnKatana"
-       
-       Full "FreyaOnKatana"
-    //    FullLLVM "FreyaOnKatana"
-       Full "FreyaOnNowin"
-    //    FullLLVM "FreyaOnNowin"
-
-
-       Full "NowinOnMono"
-    //    FullLLVM "NowinOnMono"
-
-       Full "NancyOnNowin" //Can't seem to handle the load
-    //    FullLLVM "NancyOnNowin" //Can't seem to handle the load
-
-       Full "SuaveOnMono"
-    //    FullLLVM "SuaveOnMono"
-
-       Full "NancyOnSuave"
-    //    FullLLVM "NancyOnSuave"
-
-
-        //.net core
-       Core "KestrelPlain"
-       Core "MvcOnKestrel"
-       Core "NancyOnKestrel"
-       Core "SuaveOnKestrel"
-       Core "SuaveOnCoreCLR"
-       Core "GiraffeOnKestrel"
-        // Core "FreyaOnKestrel" // does not work on osx/linux -- curl: (18) transfer closed with outstanding read data remaining
-    ]
 let writeToFile filePath str =
     System.IO.File.WriteAllText(filePath, str)
 let getHtml (chart : GoogleChart) =
@@ -404,85 +296,148 @@ let createPage systemInfo charts =
 
 
 
-let runBenchmark (projectName, friendlyName, runner) =   
+let IsRunningOnMono tf =
+    match tf with
+    | "net45" | "net451" | "net452" 
+    | "net46" | "net461" | "net462" -> isMono
+    | _ -> false
+
+let selectRunner (projectInfo : ProjectInfo) =
+    let fi = fileInfo projectInfo.ProjectFile
+    fi.Directory.ToString()
+    |>
+    match projectInfo.TargetFramework with
+    | "net45" | "net451" | "net452" 
+    | "net46" | "net461" | "net462" -> 
+        if isMono then
+            [
+                "mono"
+                sprintf "-f %s" projectInfo.TargetFramework
+                "-mo=\"--arch=64\""
+                "--restore"
+                "-c Release"
+                sprintf "-p %s" projectInfo.ProjectFile
+            ]
+            |> startProc' "dotnet"
+        else 
+            failwithf "lol who uses windows"
+        
+    | "netcoreapp1.0" | "netcoreapp1.1" -> 
+        [
+            "run"
+            "-c Release"
+            sprintf "-f %s" projectInfo.TargetFramework
+            sprintf "-p %s" projectInfo.ProjectFile
+        ]
+        |> startProc' "dotnet"
+    | _ -> failwithf "Unknown targetframework %s" projectInfo.TargetFramework
+
+
+let runBenchmark (projectInfo : ProjectInfo) =   
     try
-
-        logfn "---------------> Starting %s <---------------" friendlyName
+        
+        logfn "---------------> Starting %s <---------------" projectInfo.FriendlyName
         killProcessOnPort port 
-        use proc = runner projectName
-
+        use proc = selectRunner projectInfo
         waitForPortInUse port
-        let (summary, latency) = wrk 8 400 30 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
+        let (summary, latency) = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
+        
         //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
         killProcessOnPort port 
-
-        logfn "---------------> Finished %s <---------------" friendlyName
-        Some (friendlyName, summary, latency)
+        proc.Id |> kill
+        logfn "---------------> Finished %s <---------------" projectInfo.FriendlyName
+        Some (projectInfo, summary, latency)
     with e -> 
         eprintfn "%A" e
         None
 
-let mutable results = null
+let mutable (results : seq<ProjectInfo * Summary * Latency>) = null
+
+
+
+let gatherProjectInfo (projFile : string) =
+    let doc = Xml.XmlDocument()
+    doc.Load(projFile)
+    let targetFrameworks = doc.GetElementsByTagName("TargetFrameworks").[0].InnerText.Split(';')
+    let parts = 
+        projFile.Split(IO.Path.DirectorySeparatorChar)
+        |> Array.rev
+
+    let webframework = parts.[1]
+    let webserver = parts.[2]
+
+    targetFrameworks
+    |> Seq.map(fun tf -> 
+    {
+        ProjectFile = projFile
+        TargetFramework = tf
+        WebServer = webserver
+        WebFramework = webframework
+        IsMono = IsRunningOnMono tf
+    })
+ 
+
+Target "DotnetRestore" (fun _ ->
+        !! srcGlob
+        |> Seq.toArray
+        |> Array.Parallel.iter dotnetRestore
+ )
 
 Target "Benchmark" (fun _ ->
     //Make sure nothing is on this port
     killProcessOnPort port
     results <-
-        projects 
-        |> Seq.map(fun framework ->
-            match framework with
-            | Full proj -> (proj, proj, msbuildAndRun false)
-            | FullLLVM proj -> (proj, (sprintf "%s-llvm" proj), msbuildAndRun true)
-            | Core proj -> (proj, proj, dotnetBuildAndRun)
-        )
-        |> Seq.choose (runBenchmark)
+        !! srcGlob
+        |> Seq.toList
+        |> Seq.cache
+        |> Seq.collect gatherProjectInfo
+        |> Seq.choose runBenchmark
         |> Seq.toList
         |> Seq.cache
 )
 
-let tee f x = f x; x
 
 
-let dumpAllDataToConsole (results : seq<ProjectName * Summary * Latency>)  =  
+
+let dumpAllDataToConsole (results : seq<ProjectInfo * Summary * Latency>)  =  
     results |> Seq.iter (printfn "%A")
 
 
 
 type TextReport = {
-    ProjectName : ProjectName
+    WebServer : ProjectName
+    WebFramework: string
+    IsMono : bool
+    TargetFramework : string
     TotalRequests : int<req>
-    Duration: int<ms>
+    Duration: int<s>
     RequestsPerSecond : int<req/s>
 }
-let toTextReport name total duration reqs = {
-    ProjectName = name
-    TotalRequests = total
-    Duration = duration
-    RequestsPerSecond = reqs
-}
 
-let toTableFormatter (p : TextReport) = 
-    [ 
-        ("ProjectName", p.ProjectName :> obj) 
-        ("TotalRequests", p.TotalRequests :> obj) 
-        ("Duration (s)", (p.Duration |> convertMStoS ) :> obj) 
-        ("Req/s", p.RequestsPerSecond :> obj) 
-    ]
 
-let printTable = Printer.prettyPrintTable toTableFormatter {ProjectName="" ; TotalRequests=0<req>; Duration=0<ms>; RequestsPerSecond=0<req/s>}
-let createTextReport (results : seq<ProjectName * Summary * Latency>) =
-    results
-    |> Seq.map(fun (p,s,_) -> toTextReport p s.requests s.duration (s.RequestsPerSecond()))
+let createTextReport (results : seq<ProjectInfo * Summary * Latency>) =
+    results 
+    |> Seq.map(fun (proj, sum, lat) -> 
+    {
+        WebServer = proj.WebServer
+        WebFramework = proj.WebFramework
+        IsMono = proj.IsMono
+        TargetFramework = proj.TargetFramework
+        TotalRequests = sum.requests
+        Duration = sum.duration |> convertMStoS
+        RequestsPerSecond = sum.RequestsPerSecond()
+    })
     |> Seq.sortByDescending(fun tr -> tr.RequestsPerSecond)
-    |> Seq.toList
-    |> printTable
+    |> MarkdownLog.MarkDownBuilderExtensions.ToMarkdownTable
+    |> string
     |> printfn "%s"
 
-let createHtmlReport (results : seq<ProjectName * Summary * Latency>) =  
+
+let createHtmlReport (results : seq<ProjectInfo * Summary * Latency>) =  
     let ( _,firstResult,_) = results |> Seq.head 
-    let duration = (firstResult.duration / 1000000)
+    let duration = (firstResult.duration |> convertMStoS)
     let reportPath = reportDir @@ (sprintf "report-%s.html" (DateTimeOffset.UtcNow.ToString("o")))
-    let labels = results |> Seq.map(fun (proj,_,_) -> proj)
+    let labels = results |> Seq.map(fun (proj,_,_) -> proj.FriendlyName)
 
 
 
@@ -535,8 +490,10 @@ Target "GenerateReport" (fun _ ->
     |> Seq.iter invoke
 )
 
+
 // Build order
 "Clean"
+  ==> "DotnetRestore"
   ==> "Benchmark"
   ==> "GenerateReport"
 
