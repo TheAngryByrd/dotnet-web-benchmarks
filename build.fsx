@@ -45,26 +45,29 @@ let reportDir = "./reports"
 let stringJoin (separator : string) (strings : string seq) =
     String.Join(separator, strings)
 
-[<Measure>] type ms
+[<Measure>] type μs
 [<Measure>] type s
 
-let convertMStoS (ms : int<ms>) =
-    ms / 1000000<ms/s>
+let convertMicrotoS (μs : int<μs>) =
+    μs / 1000000<μs/s>
 
 [<Measure>] type req
 
 
 //Proc helpers
 let waitForExit ( proc : Process) = proc.WaitForExit()
-let startProc fileName args workingDir=
+let startProc fileName args (envVars : #seq<string*string>) workingDir=
+    let psi = ProcessStartInfo(FileName = fileName, Arguments = args, WorkingDirectory = workingDir, UseShellExecute = false) 
+    envVars |> Seq.iter(fun (k,v) -> 
+        psi.EnvironmentVariables.[k] <- v)
     let proc = 
-        ProcessStartInfo(FileName = fileName, Arguments = args, WorkingDirectory = workingDir, UseShellExecute = true) 
+        psi
         |> Process.Start
 
     proc 
 
-let startProc' fileName (args : #seq<string>) workingDir =
-    startProc fileName (String.Join(" ",args)) workingDir
+let startProc' fileName (args : #seq<string>) envVars workingDir =
+    startProc fileName (String.Join(" ",args)) envVars workingDir
 
 let execProcAndReturnMessages filename args =
     ExecProcessAndReturnMessages 
@@ -101,8 +104,11 @@ let getProcessor () =
     result |> Seq.head
 
 let getProcessIdByPort port =
-    let result = lsof (sprintf "-ti tcp:%d" port)
+    let result = lsof (sprintf "-ti :%d" port)
     result.Messages |> Seq.tryHead |> Option.map int
+let getProcessesIdByPort port =
+    let result = lsof (sprintf "-ti :%d" port)
+    result.Messages |> Seq.map int
 
 let waitForPortInUse  port =
     let mutable portInUse = false
@@ -117,7 +123,7 @@ let waitForPortInUse  port =
 
 
 let killProcessOnPort port =
-    getProcessIdByPort port |> Option.iter kill 
+    getProcessesIdByPort port |> Seq.iter kill 
 
 
 
@@ -211,13 +217,13 @@ type Error = {
 
 type Summary = {
     bytes : int
-    duration : int<ms> // in microseconds
+    duration : int<μs> // in microseconds
     requests : int<req>
     errors : Error
 }
     with 
         member this.RequestsPerSecond () =         
-            this.requests/( convertMStoS this.duration )
+            this.requests/( convertMicrotoS this.duration )
 
 
 type Latency = {
@@ -303,34 +309,42 @@ let IsRunningOnMono tf =
     | _ -> false
 
 let selectRunner (projectInfo : ProjectInfo) =
-    let fi = fileInfo projectInfo.ProjectFile
-    fi.Directory.ToString()
-    |>
-    match projectInfo.TargetFramework with
-    | "net45" | "net451" | "net452" 
-    | "net46" | "net461" | "net462" -> 
-        if isMono then
+    let startProc'' proc envVars args = startProc' proc args envVars
+
+    let monoOptions () =
+        [
+            "--server"
+            (if isMacOS then "--arch=64" else "") //osx by default runs on x86.  Other distros don't know about this flag so set it specific to osx.
+        ]
+        |> stringJoin " "
+        |> sprintf "-mo=\"%s\""
+
+    IO.Path.GetDirectoryName projectInfo.ProjectFile    
+    |>  match projectInfo.TargetFramework with
+        | "net45" | "net451" | "net452" 
+        | "net46" | "net461" | "net462" -> 
+            if isMono then
+                [
+                    "mono"
+                    sprintf "-f %s" projectInfo.TargetFramework
+                    monoOptions ()
+                    "--restore"
+                    "-c Release"
+                    sprintf "-p %s" projectInfo.ProjectFile
+                ]
+                |> startProc'' "dotnet" [("MONO_THREADS_PER_CPU", "2000")]
+            else 
+                failwithf "lol who uses windows"
+            
+        | "netcoreapp1.0" | "netcoreapp1.1" -> 
             [
-                "mono"
-                sprintf "-f %s" projectInfo.TargetFramework
-                "-mo=\"--arch=64\""
-                "--restore"
+                "run"
                 "-c Release"
+                sprintf "-f %s" projectInfo.TargetFramework
                 sprintf "-p %s" projectInfo.ProjectFile
             ]
-            |> startProc' "dotnet"
-        else 
-            failwithf "lol who uses windows"
-        
-    | "netcoreapp1.0" | "netcoreapp1.1" -> 
-        [
-            "run"
-            "-c Release"
-            sprintf "-f %s" projectInfo.TargetFramework
-            sprintf "-p %s" projectInfo.ProjectFile
-        ]
-        |> startProc' "dotnet"
-    | _ -> failwithf "Unknown targetframework %s" projectInfo.TargetFramework
+            |> startProc'' "dotnet" []
+        | _ -> failwithf "Unknown targetframework %s" projectInfo.TargetFramework
 
 
 let runBenchmark (projectInfo : ProjectInfo) =   
@@ -380,7 +394,7 @@ let gatherProjectInfo (projFile : string) =
 Target "DotnetRestore" (fun _ ->
         !! srcGlob
         |> Seq.toArray
-        |> Array.Parallel.iter dotnetRestore
+        |> Array.iter dotnetRestore
  )
 
 Target "Benchmark" (fun _ ->
@@ -424,7 +438,7 @@ let createTextReport (results : seq<ProjectInfo * Summary * Latency>) =
         IsMono = proj.IsMono
         TargetFramework = proj.TargetFramework
         TotalRequests = sum.requests
-        Duration = sum.duration |> convertMStoS
+        Duration = sum.duration |> convertMicrotoS
         RequestsPerSecond = sum.RequestsPerSecond()
     })
     |> Seq.sortByDescending(fun tr -> tr.RequestsPerSecond)
@@ -435,7 +449,7 @@ let createTextReport (results : seq<ProjectInfo * Summary * Latency>) =
 
 let createHtmlReport (results : seq<ProjectInfo * Summary * Latency>) =  
     let ( _,firstResult,_) = results |> Seq.head 
-    let duration = (firstResult.duration |> convertMStoS)
+    let duration = (firstResult.duration |> convertMicrotoS)
     let reportPath = reportDir @@ (sprintf "report-%s.html" (DateTimeOffset.UtcNow.ToString("o")))
     let labels = results |> Seq.map(fun (proj,_,_) -> proj.FriendlyName)
 
