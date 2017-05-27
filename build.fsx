@@ -19,6 +19,11 @@ open System.Diagnostics
 open System.Net.Sockets
 
 
+
+let wrkDuration = 10
+
+let benchmarkIterations = 10
+
 #if MONO
 let inferFrameworkPathOverride () =
     let mscorlib = "mscorlib.dll"
@@ -34,6 +39,10 @@ let inferFrameworkPathOverride () =
 
 Environment.SetEnvironmentVariable("FrameworkPathOverride", inferFrameworkPathOverride ())
 #endif
+
+module String =
+    let contains (s2 : string) (s1 : string)  =
+        s1.Contains s2
 
 // Directories
 let srcDir = "./src"
@@ -346,26 +355,27 @@ let selectRunner (projectInfo : ProjectInfo) =
             |> startProc'' "dotnet" []
         | _ -> failwithf "Unknown targetframework %s" projectInfo.TargetFramework
 
-
-let runBenchmark (projectInfo : ProjectInfo) =   
+type Iteration = int
+type BenchmarkResult = ProjectInfo * Summary * Latency * Iteration
+let runBenchmark iteration (projectInfo : ProjectInfo) =   
     try
         
         logfn "---------------> Starting %s <---------------" projectInfo.FriendlyName
         killProcessOnPort port 
         use proc = selectRunner projectInfo
         waitForPortInUse port
-        let (summary, latency) = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
+        let (summary, latency) = wrk 8 400 wrkDuration "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
         proc.Id |> kill
         //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
         killProcessOnPort port 
         proc.Id |> kill
         logfn "---------------> Finished %s <---------------" projectInfo.FriendlyName
-        Some (projectInfo, summary, latency)
+        Some (projectInfo, summary, latency, iteration)
     with e -> 
         eprintfn "%A" e
         None
 
-let mutable (results : seq<ProjectInfo * Summary * Latency>) = null
+let mutable (results : seq<BenchmarkResult>) = null
 
 
 
@@ -397,23 +407,35 @@ Target "DotnetRestore" (fun _ ->
         |> Array.iter dotnetRestore
  )
 
+
+// let (+.) x s = [for y in s -> x + y]
+let (<||>) pred1 pred2 x =
+        pred1 x || pred2 x
+
 Target "Benchmark" (fun _ ->
     //Make sure nothing is on this port
     killProcessOnPort port
-    results <-
-        !! srcGlob
-        |> Seq.toList
+    let foo = 
+        [1..benchmarkIterations]
+        |> Seq.collect(fun i ->
+            !! srcGlob
+            |> Seq.toList
+            |> Seq.cache
+            |> Seq.filter(String.contains "Giraffe" <||> String.contains "Kestrel/MVC" <||> String.contains "Kestrel/Plain"  )
+            |> Seq.collect gatherProjectInfo
+            |> Seq.filter(fun x -> x.TargetFramework |> String.contains "netcoreapp1")
+            |> Seq.choose (runBenchmark i)
+            |> Seq.toList
+            |> Seq.cache
+        )
         |> Seq.cache
-        |> Seq.collect gatherProjectInfo
-        |> Seq.choose runBenchmark
-        |> Seq.toList
-        |> Seq.cache
+    results <- foo
 )
 
 
 
 
-let dumpAllDataToConsole (results : seq<ProjectInfo * Summary * Latency>)  =  
+let dumpAllDataToConsole (results : seq<BenchmarkResult>)  =  
     results |> Seq.iter (printfn "%A")
 
 
@@ -421,6 +443,7 @@ let dumpAllDataToConsole (results : seq<ProjectInfo * Summary * Latency>)  =
 type TextReport = {
     WebServer : ProjectName
     WebFramework: string
+    Iteration : int
     IsMono : bool
     TargetFramework : string
     TotalRequests : int<req>
@@ -429,12 +452,13 @@ type TextReport = {
 }
 
 
-let createTextReport (results : seq<ProjectInfo * Summary * Latency>) =
+let createTextReport (results : seq<BenchmarkResult>) =
     results 
-    |> Seq.map(fun (proj, sum, lat) -> 
+    |> Seq.map(fun (proj, sum, lat, iteration) -> 
     {
         WebServer = proj.WebServer
         WebFramework = proj.WebFramework
+        Iteration = iteration
         IsMono = proj.IsMono
         TargetFramework = proj.TargetFramework
         TotalRequests = sum.requests
@@ -447,24 +471,24 @@ let createTextReport (results : seq<ProjectInfo * Summary * Latency>) =
     |> printfn "%s"
 
 
-let createHtmlReport (results : seq<ProjectInfo * Summary * Latency>) =  
-    let ( _,firstResult,_) = results |> Seq.head 
+let createHtmlReport (results : seq<BenchmarkResult>) =  
+    let ( _,firstResult,_,_) = results |> Seq.head 
     let duration = (firstResult.duration |> convertMicrotoS)
     let reportPath = reportDir @@ (sprintf "report-%s.html" (DateTimeOffset.UtcNow.ToString("o")))
-    let labels = results |> Seq.map(fun (proj,_,_) -> proj.FriendlyName)
+    let labels = results |> Seq.map(fun (proj,_,_, iteratoin) -> sprintf "%s-%d" proj.FriendlyName iteratoin)
 
 
 
     let totalRequestsChart =
         results
-        |> Seq.map(fun (_,summary,latency) -> [("Total",summary.requests)])
+        |> Seq.map(fun (_,summary,latency,_) -> [("Total",summary.requests)])
         |> Chart.Bar
         |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Total Requests over %d seconds" duration)
     
     let requestsPerSecondChart =
         results
-        |> Seq.map(fun (_,summary,_) -> [("Req/s", summary.RequestsPerSecond())])
+        |> Seq.map(fun (_,summary,_,_) -> [("Req/s", summary.RequestsPerSecond())])
         |> Chart.Bar
         |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Requests per second over %d seconds" duration)
@@ -472,7 +496,7 @@ let createHtmlReport (results : seq<ProjectInfo * Summary * Latency>) =
         
     let meanLatencyChart =
         results
-        |> Seq.map(fun (_,_,latency) -> 
+        |> Seq.map(fun (_,_,latency,_) -> 
             [
                 // ("Min", latency.min/1000.); 
                 // ("Max", latency.max/1000.); 
@@ -488,8 +512,11 @@ let createHtmlReport (results : seq<ProjectInfo * Summary * Latency>) =
     |> stringJoin ""
     |> createPage (systemInfoToHtmlTable(getSystemInfo ()))
     |> writeToFile reportPath
-    |> fun _ ->   System.Diagnostics.Process.Start((Path.GetFullPath(reportPath)))  
-    |> ignore
+    |> fun _ ->   
+        try
+            System.Diagnostics.Process.Start((Path.GetFullPath(reportPath)))  |> ignore
+        with _ -> ()
+    
 
 let invoke f = f()
 
