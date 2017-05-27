@@ -355,7 +355,7 @@ let runBenchmark (projectInfo : ProjectInfo) =
         use proc = selectRunner projectInfo
         waitForPortInUse port
         let (summary, latency) = wrk 8 400 10 "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
-        
+        proc.Id |> kill
         //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
         killProcessOnPort port 
         proc.Id |> kill
