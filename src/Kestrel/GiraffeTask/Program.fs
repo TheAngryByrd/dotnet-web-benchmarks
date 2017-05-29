@@ -13,8 +13,25 @@ let handleAsync (ctx) = task {
 }
 let webApp = 
     choose [
-        GET  >=> route "/" >=> handleAsync
+        GET >=>
+            choose [
+                route "/" >=> text "Hello world, from Giraffe!"
+                route "/test" >=> text "Giraffe test working"
+                subRoute "/auth" ( 
+                    choose [
+                        route "/dashboard" >=> text "Auth Dashboard"
+                        route "/inbox" >=> text "Auth Inbox"
+                        subRoute "/manager" (
+                            route "/payroll" >=> text "Manager Payroll"
+                            route "/timesheets" >=> text "Manager Timesheets"
+                        )
+                    ]
+                )
+                route "/data" >=> text "json (weatherForecasts ())"
+                routef "/value/%s" text  
+            ]
     ]
+
 [<EntryPoint>]
 let main argv =
     WebHostBuilder()

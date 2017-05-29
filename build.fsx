@@ -23,6 +23,7 @@ open System.Net.Sockets
 let wrkDuration = 10
 
 let benchmarkIterations = 10
+// let benchmarkIterations = 1
 
 #if MONO
 let inferFrameworkPathOverride () =
@@ -43,6 +44,13 @@ Environment.SetEnvironmentVariable("FrameworkPathOverride", inferFrameworkPathOv
 module String =
     let contains (s2 : string) (s1 : string)  =
         s1.Contains s2
+
+module Option =
+
+    let getValueOt defaultValue optV =
+        match optV with
+        | Some s -> s
+        | None -> defaultValue
 
 // Directories
 let srcDir = "./src"
@@ -212,7 +220,13 @@ type ProjectInfo = {
 }
     with member x.FriendlyName = sprintf "%s/%s on %s" x.WebServer x.WebFramework x.TargetFramework
 
+type RoutesToTest = string
 
+
+type BenchmarkParamters = {
+    ProjectInfo : ProjectInfo
+    RoutesToTest : RoutesToTest
+}
 
 //https://github.com/wg/wrk/blob/master/SCRIPTING
 //{"bytes":217834904,"duration":30099407,"errors":{"connect":0,"read":182,"status":0,"timeout":0,"write":0},"requests":1785532}
@@ -356,21 +370,22 @@ let selectRunner (projectInfo : ProjectInfo) =
         | _ -> failwithf "Unknown targetframework %s" projectInfo.TargetFramework
 
 type Iteration = int
-type BenchmarkResult = ProjectInfo * Summary * Latency * Iteration
-let runBenchmark iteration (projectInfo : ProjectInfo) =   
+type BenchmarkResult = ProjectInfo * Summary * Latency * Iteration * RoutesToTest
+let runBenchmark iteration (benchParam : BenchmarkParamters) =   
     try
-        
+        let projectInfo = benchParam.ProjectInfo
+        let urlToTest = sprintf "http://127.0.0.1:8083%s" benchParam.RoutesToTest
         logfn "---------------> Starting %s <---------------" projectInfo.FriendlyName
         killProcessOnPort port 
         use proc = selectRunner projectInfo
         waitForPortInUse port
-        let (summary, latency) = wrk 8 400 wrkDuration "./scripts/reportStatsViaJson.lua" "http://127.0.0.1:8083/"
+        let (summary, latency) = wrk 8 400 wrkDuration "./scripts/reportStatsViaJson.lua" urlToTest
         proc.Id |> kill
         //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
         killProcessOnPort port 
         proc.Id |> kill
         logfn "---------------> Finished %s <---------------" projectInfo.FriendlyName
-        Some (projectInfo, summary, latency, iteration)
+        Some (projectInfo, summary, latency, iteration, benchParam.RoutesToTest)
     with e -> 
         eprintfn "%A" e
         None
@@ -378,8 +393,8 @@ let runBenchmark iteration (projectInfo : ProjectInfo) =
 let mutable (results : seq<BenchmarkResult>) = null
 
 
-
-let gatherProjectInfo (projFile : string) =
+open Fake.FileSystemHelper
+let gatherProjectInfoAndRoutesToTest (projFile : string) =
     let doc = Xml.XmlDocument()
     doc.Load(projFile)
     let targetFrameworks = doc.GetElementsByTagName("TargetFrameworks").[0].InnerText.Split(';')
@@ -389,16 +404,34 @@ let gatherProjectInfo (projFile : string) =
 
     let webframework = parts.[1]
     let webserver = parts.[2]
+    let projInfos =
+        targetFrameworks
+        |> Seq.map(fun tf -> 
+        {
+            ProjectFile = projFile
+            TargetFramework = tf
+            WebServer = webserver
+            WebFramework = webframework
+            IsMono = IsRunningOnMono tf
+        })
+    let routesToTest =
+        DirectoryName projFile
+        |> directoryInfo
+        |> filesInDirMatching "rooutesToTest.txt"
+        |> Seq.tryHead
+        |> Option.map (string >> File.ReadAllLines)
+        |> Option.getValueOt [|"/"|]
 
-    targetFrameworks
-    |> Seq.map(fun tf -> 
-    {
-        ProjectFile = projFile
-        TargetFramework = tf
-        WebServer = webserver
-        WebFramework = webframework
-        IsMono = IsRunningOnMono tf
-    })
+    routesToTest
+    |> Seq.collect(
+        fun s -> 
+            projInfos
+            |> Seq.map(fun p ->
+                {ProjectInfo = p; RoutesToTest =s }
+            )
+    )
+    
+    
  
 
 Target "DotnetRestore" (fun _ ->
@@ -408,7 +441,7 @@ Target "DotnetRestore" (fun _ ->
  )
 
 
-// let (+.) x s = [for y in s -> x + y]
+
 let (<||>) pred1 pred2 x =
         pred1 x || pred2 x
 
@@ -421,9 +454,10 @@ Target "Benchmark" (fun _ ->
             !! srcGlob
             |> Seq.toList
             |> Seq.cache
-            |> Seq.filter(String.contains "Giraffe" <||> String.contains "Kestrel/MVC" <||> String.contains "Kestrel/Plain"  )
-            |> Seq.collect gatherProjectInfo
-            |> Seq.filter(fun x -> x.TargetFramework |> String.contains "netcoreapp1")
+            |> Seq.filter(String.contains "Giraffe" )
+            // |> Seq.filter(String.contains "Giraffe" <||> String.contains "Kestrel/MVC" <||> String.contains "Kestrel/Plain"  )
+            |> Seq.collect gatherProjectInfoAndRoutesToTest
+            // |> Seq.filter(fun x -> x.TargetFramework |> String.contains "netcoreapp1")
             |> Seq.choose (runBenchmark i)
             |> Seq.toList
             |> Seq.cache
@@ -443,6 +477,7 @@ let dumpAllDataToConsole (results : seq<BenchmarkResult>)  =
 type TextReport = {
     WebServer : ProjectName
     WebFramework: string
+    Route : string
     Iteration : int
     IsMono : bool
     TargetFramework : string
@@ -454,10 +489,11 @@ type TextReport = {
 
 let createTextReport (results : seq<BenchmarkResult>) =
     results 
-    |> Seq.map(fun (proj, sum, lat, iteration) -> 
+    |> Seq.map(fun (proj, sum, lat, iteration, route) -> 
     {
         WebServer = proj.WebServer
         WebFramework = proj.WebFramework
+        Route = route
         Iteration = iteration
         IsMono = proj.IsMono
         TargetFramework = proj.TargetFramework
@@ -472,23 +508,23 @@ let createTextReport (results : seq<BenchmarkResult>) =
 
 
 let createHtmlReport (results : seq<BenchmarkResult>) =  
-    let ( _,firstResult,_,_) = results |> Seq.head 
+    let ( _,firstResult,_,_,_) = results |> Seq.head 
     let duration = (firstResult.duration |> convertMicrotoS)
     let reportPath = reportDir @@ (sprintf "report-%s.html" (DateTimeOffset.UtcNow.ToString("o")))
-    let labels = results |> Seq.map(fun (proj,_,_, iteratoin) -> sprintf "%s-%d" proj.FriendlyName iteratoin)
+    let labels = results |> Seq.map(fun (proj,_,_, iteratoin,route) -> sprintf "%s-%s-%d" proj.FriendlyName route iteratoin)
 
 
 
     let totalRequestsChart =
         results
-        |> Seq.map(fun (_,summary,latency,_) -> [("Total",summary.requests)])
+        |> Seq.map(fun (_,summary,latency,_,_) -> [("Total",summary.requests)])
         |> Chart.Bar
         |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Total Requests over %d seconds" duration)
     
     let requestsPerSecondChart =
         results
-        |> Seq.map(fun (_,summary,_,_) -> [("Req/s", summary.RequestsPerSecond())])
+        |> Seq.map(fun (_,summary,_,_,_) -> [("Req/s", summary.RequestsPerSecond())])
         |> Chart.Bar
         |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Requests per second over %d seconds" duration)
@@ -496,7 +532,7 @@ let createHtmlReport (results : seq<BenchmarkResult>) =
         
     let meanLatencyChart =
         results
-        |> Seq.map(fun (_,_,latency,_) -> 
+        |> Seq.map(fun (_,_,latency,_,_) -> 
             [
                 // ("Min", latency.min/1000.); 
                 // ("Max", latency.max/1000.); 
