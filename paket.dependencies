@@ -1,10 +1,9 @@
 source https://www.nuget.org/api/v2
-framework: >= net45
+framework: auto-detect
 
 
 group Build
-
-  framework: >= net45
+  framework: auto-detect
   source https://nuget.org/api/v2
   
   nuget SourceLink.Fake
