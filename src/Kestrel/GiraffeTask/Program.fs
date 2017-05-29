@@ -14,7 +14,6 @@ let handleAsync (ctx) = task {
 let webApp = 
     choose [
         GET  >=> route "/" >=> handleAsync
-
     ]
 [<EntryPoint>]
 let main argv =
