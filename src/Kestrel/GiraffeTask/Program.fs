@@ -6,18 +6,15 @@ open Microsoft.AspNetCore.Http
 
 open Giraffe.HttpHandlers
 open Giraffe.Middleware
+open Giraffe.AsyncTask
 
-
-let handleAsync (ctx) = async {
+let handleAsync (ctx) = task {
     return! text "Hello World!" ctx
 }
-
 let webApp = 
     choose [
         GET  >=> route "/" >=> handleAsync
     ]
-
-
 // let webApp = 
 //     choose [
 //         GET >=>
@@ -38,6 +35,7 @@ let webApp =
 //                 routef "/value/%s" text  
 //             ]
 //     ]
+
 [<EntryPoint>]
 let main argv =
     WebHostBuilder()
