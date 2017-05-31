@@ -11,7 +11,7 @@
     <PackageReference Include="FSharp.NET.Sdk" Version="1.0.*" PrivateAssets="All" />
     <PackageReference Include="Microsoft.Owin.Host.HttpListener" Version="3.0.1" />
     <PackageReference Include="Microsoft.Owin.Hosting" Version="3.0.1" />
-    <PackageReference Include="Freya" Version="3.0.0-rc01" />
+    <PackageReference Include="Freya" Version="4.0.0-alpha-*" />
     <DotNetCliToolReference Include="dotnet-mono" Version="0.1.1" />
   </ItemGroup>
 </Project>
