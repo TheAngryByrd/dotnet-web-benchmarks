@@ -1,22 +1,21 @@
 // include Fake libs
-#r "./packages/build/FAKE/tools/FakeLib.dll"
-#load "./packages/build/FsLab/FsLab.fsx"
-#r "./packages/build/MarkdownLog/lib/portable-net45+win+wp8+wpa81/MarkdownLog.dll"
-open Deedle
-open FSharp.Data
-open XPlot.GoogleCharts
-open XPlot.GoogleCharts.Deedle
 
-#r "./packages/build/Newtonsoft.Json/lib/net45//Newtonsoft.Json.dll"
-open Newtonsoft.Json
+#r "./packages/build/FAKE/tools/FakeLib.dll"
+#load "./.paket/load/net461/build/build.group.fsx"
+
 
 open Fake
 open Fake.EnvironmentHelper
+open Fake.FileSystemHelper
 open System
 open System.IO
 open System.Text
 open System.Diagnostics
 open System.Net.Sockets
+
+open XPlot.GoogleCharts
+open Newtonsoft.Json
+open BenchmarkDotNet.Environments
 
 
 
@@ -110,14 +109,6 @@ let mono args = execProcAndReturnMessages "mono" args
 let dotnet args = execProcAndReturnMessages "dotnet" args
 
 
-let getProcessor () =
-    let result =
-        if EnvironmentHelper.isMacOS
-        then execProcAndReturnMessages "sysctl" "-n machdep.cpu.brand_string" |> getProcessMessages 
-        elif EnvironmentHelper.isLinux 
-        then execProcAndReturnMessages "cat" "/proc/cpuinfo | grep 'model name' | uniq" |> getProcessMessages 
-        else failwith "Not supported OS"
-    result |> Seq.head
 
 let getProcessIdByPort port =
     let result = lsof (sprintf "-ti :%d" port)
@@ -166,21 +157,20 @@ let dotnetRestore projFile =
 type SystemInfo = {
     CPUModel : string
     ProcessorCount : int
-    MonoVersion : string seq
-    DotnetVersion : string seq
+    MonoVersion : string
+    DotnetVersion : string
     OperatingSystem : string
 }
 
 let getSystemInfo () =
-    let machineInfo = EnvironmentHelper.getMachineEnvironment ()
-    let monoVersion = mono "--version" |> getProcessMessages 
-    let dotnetVersion = dotnet "--version" |> getProcessMessages 
+    let hostInfo =  HostEnvironmentInfo.GetCurrent()
+    let benchInfo = BenchmarkEnvironmentInfo.GetCurrent()
     {
-        CPUModel =  getProcessor ()
-        ProcessorCount = machineInfo.ProcessorCount
-        MonoVersion = monoVersion
-        DotnetVersion = dotnetVersion
-        OperatingSystem = machineInfo.OperatingSystem
+        CPUModel =  hostInfo.ProcessorName.Value
+        ProcessorCount = hostInfo.ProcessorCount
+        MonoVersion = benchInfo.RuntimeVersion
+        DotnetVersion = hostInfo.DotNetCliVersion.Value
+        OperatingSystem = hostInfo.OsVersion.Value
     }
 
 let td inner = 
@@ -198,8 +188,8 @@ let systemInfoToHtmlTable (sysInfo:SystemInfo) =
     let cpu = sysInfo.CPUModel |> td
     let os = sysInfo.OperatingSystem |> td
     let proc = sysInfo.ProcessorCount |> string |> td
-    let monoV = sysInfo.MonoVersion |> Seq.head|> td
-    let dotnetV = sysInfo.DotnetVersion|> Seq.head |> td
+    let monoV = sysInfo.MonoVersion|> td
+    let dotnetV = sysInfo.DotnetVersion |> td
 
     table
         [
@@ -392,7 +382,7 @@ let runBenchmark iteration (benchParam : BenchmarkParamters) =
 let mutable (results : seq<BenchmarkResult>) = null
 
 
-open Fake.FileSystemHelper
+
 let gatherProjectInfoAndRoutesToTest (projFile : string) =
     let doc = Xml.XmlDocument()
     doc.Load(projFile)
@@ -566,6 +556,10 @@ Target "GenerateReport" (fun _ ->
     |> Seq.iter invoke
 )
 
+
+Target "SystemInfo" (fun _ ->
+    getSystemInfo() |> printfn "%A"
+)
 
 // Build order
 "Clean"
