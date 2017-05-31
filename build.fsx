@@ -23,7 +23,6 @@ open System.Net.Sockets
 let wrkDuration = 10
 
 let benchmarkIterations = 10
-// let benchmarkIterations = 1
 
 #if MONO
 let inferFrameworkPathOverride () =
@@ -454,7 +453,7 @@ Target "Benchmark" (fun _ ->
             !! srcGlob
             |> Seq.toList
             |> Seq.cache
-            |> Seq.filter(String.contains "Giraffe" )
+            // |> Seq.filter(String.contains "Kestrel" )
             // |> Seq.filter(String.contains "Giraffe" <||> String.contains "Kestrel/MVC" <||> String.contains "Kestrel/Plain"  )
             |> Seq.collect gatherProjectInfoAndRoutesToTest
             // |> Seq.filter(fun x -> x.TargetFramework |> String.contains "netcoreapp1")
