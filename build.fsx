@@ -359,7 +359,58 @@ let selectRunner (projectInfo : ProjectInfo) =
         | _ -> failwithf "Unknown targetframework %s" projectInfo.TargetFramework
 
 type Iteration = int
-type BenchmarkResult = ProjectInfo * Summary * Latency * Iteration * RoutesToTest
+// type BenchmarkResult = ProjectInfo * Summary * Latency * Iteration * RoutesToTest
+
+type BenchmarkResult = {
+    WebServer : ProjectName
+    WebFramework: string
+    TargetFramework : string
+    IsMono : bool
+    Route : string
+    Iteration : int
+    TotalRequests : int<req>
+    Duration: int<s>
+    RequestsPerSecond : int<req/s>
+    Bytes: int
+    LatencyMax : float
+    LatencyMin : float
+    LatencyMean : float
+    LatencyStdDev : float
+    ErrorConnect : int
+    ErrorRead : int
+    ErrorStatus : int
+    ErrorTimeout : int
+    ErrorWrite : int
+}
+    with
+        member x.FriendlyName () = sprintf "%s/%s on %s" x.WebServer x.WebFramework x.TargetFramework
+        static member OfBenchmarkResult ((proj : ProjectInfo, sum, lat, iteration, route) ) =
+            {
+                WebServer = proj.WebServer
+                WebFramework = proj.WebFramework
+                Route = route
+                Iteration = iteration
+                IsMono = proj.IsMono
+                TargetFramework = proj.TargetFramework
+                TotalRequests = sum.requests
+                Duration = sum.duration |> convertMicrotoS
+                RequestsPerSecond = sum.RequestsPerSecond()
+                Bytes = sum.bytes
+                LatencyMax = lat.max
+                LatencyMin = lat.min
+                LatencyMean = lat.mean
+                LatencyStdDev = lat.stdev
+                ErrorConnect = sum.errors.connect
+                ErrorRead = sum.errors.read
+                ErrorStatus = sum.errors.status
+                ErrorTimeout = sum.errors.timeout
+                ErrorWrite = sum.errors.write
+            }
+        // static member OfBenchmarkResults (results) = results |> Seq.map FlatResult.OfBenchmarkResult
+
+
+
+
 let runBenchmark iteration (benchParam : BenchmarkParamters) =   
     try
         let projectInfo = benchParam.ProjectInfo
@@ -374,9 +425,9 @@ let runBenchmark iteration (benchParam : BenchmarkParamters) =
         killProcessOnPort port 
         proc.Id |> kill
         logfn "---------------> Finished %s <---------------" projectInfo.FriendlyName
-        Some (projectInfo, summary, latency, iteration, benchParam.RoutesToTest)
+        Some (BenchmarkResult.OfBenchmarkResult(projectInfo, summary, latency, iteration, benchParam.RoutesToTest))
     with e -> 
-        eprintfn "%A" e
+        eprintfn "--------------> BENCHMARK FAILURE ---> %A" e
         None
 
 let mutable (results : seq<BenchmarkResult>) = null
@@ -464,40 +515,6 @@ let dumpAllDataToConsole (results : seq<BenchmarkResult>)  =
 
 
 
-type FlatResult = {
-    WebServer : ProjectName
-    WebFramework: string
-    Route : string
-    Iteration : int
-    IsMono : bool
-    TargetFramework : string
-    TotalRequests : int<req>
-    Duration: int<s>
-    RequestsPerSecond : int<req/s>
-    MaxLatency : float
-    MinLatency : float
-    MeanLatency : float
-    StdDevLatency : float
-}
-    with
-        static member OfBenchmarkResult ((proj, sum, lat, iteration, route) : BenchmarkResult) =
-            {
-                WebServer = proj.WebServer
-                WebFramework = proj.WebFramework
-                Route = route
-                Iteration = iteration
-                IsMono = proj.IsMono
-                TargetFramework = proj.TargetFramework
-                TotalRequests = sum.requests
-                Duration = sum.duration |> convertMicrotoS
-                RequestsPerSecond = sum.RequestsPerSecond()
-                MaxLatency = lat.max
-                MinLatency = lat.min
-                MeanLatency = lat.mean
-                StdDevLatency = lat.stdev
-            }
-        static member OfBenchmarkResults (results) = results |> Seq.map FlatResult.OfBenchmarkResult
-
 let reportFileNameStart = (DateTimeOffset.UtcNow.ToString("o") |> sprintf "report-%s" )
 
 let getReportPath extension = reportDir @@ (sprintf "%s.%s" reportFileNameStart extension )
@@ -505,7 +522,6 @@ let getReportPath extension = reportDir @@ (sprintf "%s.%s" reportFileNameStart 
 let createTextReport (results : seq<BenchmarkResult>) =
     let mdTable =
         results 
-        |> FlatResult.OfBenchmarkResults
         |> Seq.sortByDescending(fun tr -> tr.RequestsPerSecond)
         |> MarkdownLog.MarkDownBuilderExtensions.ToMarkdownTable
         |> string
@@ -520,10 +536,7 @@ let createCsvReport (results : seq<BenchmarkResult>) =
     let write () =
         use textWriter =  fileName |> File.CreateText
         use csv = new CsvWriter( textWriter )
-        let resultsFlat = 
-            results 
-            |> FlatResult.OfBenchmarkResults
-        csv.WriteRecords( resultsFlat )
+        csv.WriteRecords( results )
 
     write ()
     fileName
@@ -532,23 +545,23 @@ let createCsvReport (results : seq<BenchmarkResult>) =
 
 
 let createHtmlReport (results : seq<BenchmarkResult>) =  
-    let ( _,firstResult,_,_,_) = results |> Seq.head 
-    let duration = (firstResult.duration |> convertMicrotoS)
+    let firstResult = results |> Seq.head 
+    let duration = firstResult.Duration 
     let reportPath = getReportPath "html"
-    let labels = results |> Seq.map(fun (proj,_,_, iteratoin,route) -> sprintf "%s-%s-%d" proj.FriendlyName route iteratoin)
+    let labels = results |> Seq.map(fun result -> sprintf "%s-%s-%d" (result.FriendlyName()) result.Route result.Iteration)
 
 
 
     let totalRequestsChart =
         results
-        |> Seq.map(fun (_,summary,latency,_,_) -> [("Total",summary.requests)])
+        |> Seq.map(fun (result) -> [("Total",result.TotalRequests)])
         |> Chart.Bar
         |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Total Requests over %d seconds" duration)
     
     let requestsPerSecondChart =
         results
-        |> Seq.map(fun (_,summary,_,_,_) -> [("Req/s", summary.RequestsPerSecond())])
+        |> Seq.map(fun (result) -> [("Req/s", result.RequestsPerSecond)])
         |> Chart.Bar
         |> Chart.WithLabels (labels)
         |> Chart.WithTitle (sprintf "Requests per second over %d seconds" duration)
@@ -556,11 +569,11 @@ let createHtmlReport (results : seq<BenchmarkResult>) =
         
     let meanLatencyChart =
         results
-        |> Seq.map(fun (_,_,latency,_,_) -> 
+        |> Seq.map(fun (result) -> 
             [
                 // ("Min", latency.min/1000.); 
                 // ("Max", latency.max/1000.); 
-                ("Mean", latency.mean/1000.); 
+                ("Mean", result.LatencyMean/1000.); 
             ])
         |> Chart.Bar
         |> Chart.WithLabels (labels)
