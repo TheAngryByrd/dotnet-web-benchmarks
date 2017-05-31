@@ -494,7 +494,7 @@ Target "Benchmark" (fun _ ->
             !! srcGlob
             |> Seq.toList
             |> Seq.cache
-            |> Seq.take 1
+            // |> Seq.take 1
             // |> Seq.filter(String.contains "Freya" )
             // |> Seq.filter(String.contains "Giraffe" <||> String.contains "Kestrel/MVC" <||> String.contains "Kestrel/Plain"  )
             |> Seq.collect gatherProjectInfoAndRoutesToTest
@@ -618,4 +618,4 @@ Target "SystemInfo" (fun _ ->
 
 
 // start build
-RunTargetOrDefault "GenerateReport"
+RunTargetOrDefault "SystemInfo"
