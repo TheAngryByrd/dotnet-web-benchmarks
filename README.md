@@ -46,7 +46,7 @@ Dotnet Version | 1.0.1
 
 #### My Numbers  
 
-         WebServer | WebFramework | TargetFramework | IsMono | Route | Iteration | TotalRequests | Duration | RequestsPerSecond |     Bytes | LatencyMax | LatencyMin | LatencyMean | LatencyStdDev | ErrorConnect | ErrorRead | ErrorStatus | ErrorTimeout | ErrorWrite
+     WebServer | WebFramework | TargetFramework | IsMono | Route | Iteration | TotalRequests | Duration | RequestsPerSecond |     Bytes | LatencyMax | LatencyMin | LatencyMean | LatencyStdDev | ErrorConnect | ErrorRead | ErrorStatus | ErrorTimeout | ErrorWrite
      --------- | ------------ | --------------- | ------ | ----- | ---------:| -------------:| --------:| -----------------:| ---------:| ----------:| ----------:| -----------:| -------------:| ------------:| ---------:| -----------:| ------------:| ----------:
      Kestrel   | Plain        | netcoreapp1.1   | False  | /     |         1 |       1060546 |       10 |            106054 | 130447158 |  259561.00 |      54.00 |     5277.47 |      14165.44 |            0 |         0 |           0 |            0 |          0
      Kestrel   | MVC          | netcoreapp1.1   | False  | /     |         1 |       1034063 |       10 |            103406 | 102372237 |  290796.00 |      52.00 |     5391.72 |      16162.06 |            0 |         0 |     1034063 |            0 |          0
