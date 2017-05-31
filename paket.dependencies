@@ -12,3 +12,4 @@ group build
   nuget FsLab
   nuget MarkdownLog
   nuget BenchmarkDotNet
+  nuget CsvHelper

@@ -16,6 +16,7 @@ NUGET
       BenchmarkDotNet.Core (>= 0.10.6) - restriction: >= net46
       Microsoft.CodeAnalysis.CSharp (>= 2.0) - restriction: >= net46
       System.Threading.Tasks (>= 4.3) - restriction: >= net46
+    CsvHelper (2.16.3)
     Deedle (1.2.5)
     Deedle.RPlugin (1.2.5)
       Deedle (>= 1.2.5)

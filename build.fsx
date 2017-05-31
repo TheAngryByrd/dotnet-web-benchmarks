@@ -16,12 +16,12 @@ open System.Net.Sockets
 open XPlot.GoogleCharts
 open Newtonsoft.Json
 open BenchmarkDotNet.Environments
-
+open CsvHelper
 
 
 let wrkDuration = 10
 
-let benchmarkIterations = 3
+let benchmarkIterations = 1
 
 #if MONO
 let inferFrameworkPathOverride () =
@@ -439,10 +439,11 @@ Target "Benchmark" (fun _ ->
     killProcessOnPort port
     let foo = 
         [1..benchmarkIterations]
-        |> Seq.collect(fun i ->
+        |> Seq.collect(fun i -> 
             !! srcGlob
             |> Seq.toList
             |> Seq.cache
+            |> Seq.take 1
             // |> Seq.filter(String.contains "Freya" )
             // |> Seq.filter(String.contains "Giraffe" <||> String.contains "Kestrel/MVC" <||> String.contains "Kestrel/Plain"  )
             |> Seq.collect gatherProjectInfoAndRoutesToTest
@@ -463,7 +464,7 @@ let dumpAllDataToConsole (results : seq<BenchmarkResult>)  =
 
 
 
-type TextReport = {
+type FlatResult = {
     WebServer : ProjectName
     WebFramework: string
     Route : string
@@ -473,33 +474,67 @@ type TextReport = {
     TotalRequests : int<req>
     Duration: int<s>
     RequestsPerSecond : int<req/s>
+    MaxLatency : float
+    MinLatency : float
+    MeanLatency : float
+    StdDevLatency : float
 }
+    with
+        static member OfBenchmarkResult ((proj, sum, lat, iteration, route) : BenchmarkResult) =
+            {
+                WebServer = proj.WebServer
+                WebFramework = proj.WebFramework
+                Route = route
+                Iteration = iteration
+                IsMono = proj.IsMono
+                TargetFramework = proj.TargetFramework
+                TotalRequests = sum.requests
+                Duration = sum.duration |> convertMicrotoS
+                RequestsPerSecond = sum.RequestsPerSecond()
+                MaxLatency = lat.max
+                MinLatency = lat.min
+                MeanLatency = lat.mean
+                StdDevLatency = lat.stdev
+            }
+        static member OfBenchmarkResults (results) = results |> Seq.map FlatResult.OfBenchmarkResult
 
+let reportFileNameStart = (DateTimeOffset.UtcNow.ToString("o") |> sprintf "report-%s" )
+
+let getReportPath extension = reportDir @@ (sprintf "%s.%s" reportFileNameStart extension )
 
 let createTextReport (results : seq<BenchmarkResult>) =
-    results 
-    |> Seq.map(fun (proj, sum, lat, iteration, route) -> 
-    {
-        WebServer = proj.WebServer
-        WebFramework = proj.WebFramework
-        Route = route
-        Iteration = iteration
-        IsMono = proj.IsMono
-        TargetFramework = proj.TargetFramework
-        TotalRequests = sum.requests
-        Duration = sum.duration |> convertMicrotoS
-        RequestsPerSecond = sum.RequestsPerSecond()
-    })
-    |> Seq.sortByDescending(fun tr -> tr.RequestsPerSecond)
-    |> MarkdownLog.MarkDownBuilderExtensions.ToMarkdownTable
-    |> string
+    let mdTable =
+        results 
+        |> FlatResult.OfBenchmarkResults
+        |> Seq.sortByDescending(fun tr -> tr.RequestsPerSecond)
+        |> MarkdownLog.MarkDownBuilderExtensions.ToMarkdownTable
+        |> string
+    
+    File.AppendAllText((getReportPath "md"), mdTable )
+    mdTable
     |> printfn "%s"
+
+
+let createCsvReport (results : seq<BenchmarkResult>) =
+    let fileName = getReportPath "csv"
+    let write () =
+        use textWriter =  fileName |> File.CreateText
+        use csv = new CsvWriter( textWriter )
+        let resultsFlat = 
+            results 
+            |> FlatResult.OfBenchmarkResults
+        csv.WriteRecords( resultsFlat )
+
+    write ()
+    fileName
+    |> File.ReadAllLines
+    |> Seq.iter(printfn "%A")
 
 
 let createHtmlReport (results : seq<BenchmarkResult>) =  
     let ( _,firstResult,_,_,_) = results |> Seq.head 
     let duration = (firstResult.duration |> convertMicrotoS)
-    let reportPath = reportDir @@ (sprintf "report-%s.html" (DateTimeOffset.UtcNow.ToString("o")))
+    let reportPath = getReportPath "html"
     let labels = results |> Seq.map(fun (proj,_,_, iteratoin,route) -> sprintf "%s-%s-%d" proj.FriendlyName route iteratoin)
 
 
@@ -550,6 +585,7 @@ Target "GenerateReport" (fun _ ->
     [ 
         dumpAllDataToConsole
         createTextReport
+        createCsvReport
         createHtmlReport
     ]
     |> Seq.map(fun f -> fun () -> f results)
