@@ -2,6 +2,8 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFrameworks>net462</TargetFrameworks>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.fs" />
@@ -11,7 +13,7 @@
     <PackageReference Include="FSharp.NET.Sdk" Version="1.0.*" PrivateAssets="All" />
     <PackageReference Include="Suave" Version="2.0.3" />
     <PackageReference Include="Microsoft.Owin.Hosting" Version="3.0.1" />
-    <PackageReference Include="Freya" Version="4.0.0-alpha-*" />
+    <PackageReference Include="Freya.Hopac" Version="4.0.0-alpha-*" />
     <DotNetCliToolReference Include="dotnet-mono" Version="0.1.1" />
   </ItemGroup>
 </Project>
