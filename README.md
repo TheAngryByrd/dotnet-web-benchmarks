@@ -29,6 +29,23 @@ or
 docker build -t web-benchmarks . && docker run web-benchmarks
 ```
 
+### Projects Used
+* Stress Tester
+  * [wrk](https://github.com/wg/wrk)
+* Web Servers
+  * [Katana](https://github.com/aspnet/AspNetKatana/)
+  * [Kestrel](https://github.com/aspnet/KestrelHttpServer)
+  * [Nowin](https://github.com/Bobris/Nowin)
+  * [Suave](https://github.com/SuaveIO/suave)
+* Web Frameworks
+  * [Freya](https://github.com/xyncro/freya)
+  * [Giraffe](https://github.com/dustinmoris/Giraffe)
+  * [MVC](https://github.com/aspnet/Mvc)
+  * [NancyFx](https://github.com/NancyFx/Nancy)
+  * [Suave](https://github.com/SuaveIO/suave)
+  * [Uhura](https://github.com/TheAngryByrd/uhura)
+  * [WebApi](https://www.asp.net/web-api)
+
 
 ### Results
 
