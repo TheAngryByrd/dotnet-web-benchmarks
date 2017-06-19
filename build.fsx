@@ -124,9 +124,9 @@ let convertMicrotoS (μs : int<μs>) =
 //Proc helpers
 let waitForExit ( proc : Process) = proc.WaitForExit()
 let startProc fileName args (envVars : #seq<string*string>) workingDir=
-    let psi = ProcessStartInfo(FileName = fileName, Arguments = args, WorkingDirectory = workingDir, UseShellExecute = true) 
-    // envVars |> Seq.iter(fun (k,v) -> 
-        // psi.EnvironmentVariables.[k] <- v)
+    let psi = ProcessStartInfo(FileName = fileName, Arguments = args, WorkingDirectory = workingDir, UseShellExecute = false) 
+    envVars |> Seq.iter(fun (k,v) -> 
+        psi.EnvironmentVariables.[k] <- v)
     let proc = 
         psi
         |> Process.Start
