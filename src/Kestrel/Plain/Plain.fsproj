@@ -10,7 +10,7 @@
     <PackageReference Include="FSharp.Core" Version="4.1.*" />
     <PackageReference Include="FSharp.NET.Sdk" Version="1.0.*" PrivateAssets="All" />
     <PackageReference Include="Microsoft.AspNetCore.Server.Kestrel" Version="1.1.1" />
-    <DotNetCliToolReference Include="dotnet-mono" Version="0.1.1" />
+    <DotNetCliToolReference Include="dotnet-mono" Version="0.1.4" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)'=='net451' OR '$(TargetFramework)'=='net451' OR '$(TargetFramework)'=='net452' OR '$(TargetFramework)'=='net46' OR '$(TargetFramework)'=='net461' OR '$(TargetFramework)'=='net462'">
     <PackageReference Include="System.Native" Version="1.0.0-rc4-004707" />

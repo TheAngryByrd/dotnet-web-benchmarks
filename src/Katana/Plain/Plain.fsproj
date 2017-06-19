@@ -11,6 +11,6 @@
     <PackageReference Include="FSharp.NET.Sdk" Version="1.0.*" PrivateAssets="All" />
     <PackageReference Include="Microsoft.Owin.Host.HttpListener" Version="3.0.1" />
     <PackageReference Include="Microsoft.Owin.Hosting" Version="3.0.1" />
-    <DotNetCliToolReference Include="dotnet-mono" Version="0.1.1" />
+    <DotNetCliToolReference Include="dotnet-mono" Version="0.1.4" />
   </ItemGroup>
 </Project>

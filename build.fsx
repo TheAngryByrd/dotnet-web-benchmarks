@@ -19,26 +19,76 @@ open BenchmarkDotNet.Environments
 open CsvHelper
 
 
+module ProcessHelper = 
+    open System
+    open System.Diagnostics
+    open Fake
+
+    let execProcAndReturnMessages filename args =
+        let args' = args |> String.concat " "
+        ProcessHelper.ExecProcessAndReturnMessages 
+                    (fun psi ->
+                        psi.FileName <- filename
+                        psi.Arguments <-args'
+                    ) (TimeSpan.FromMinutes(1.))
+
+    module Shell =
+        let pgrep args =
+            execProcAndReturnMessages "pgrep" args
+        
+        let kill args = 
+            execProcAndReturnMessages "kill" args
+
+        let lsof args = 
+            execProcAndReturnMessages "lsof" args
+
+        let getProcessIdByPort port =
+            let result = lsof [sprintf "-ti tcp:%d" port]
+            result.Messages |> Seq.tryHead |> Option.map int
+
+
+        let killTerm  processId =
+            kill [sprintf "-TERM %d" processId]
+        let killInt  processId =
+            kill [sprintf "-INT %d" processId]
+        
+        let killProcessOnPort port =
+            getProcessIdByPort port |> Option.map killTerm
+
+    let rec getAllChildIdsUnix parentId=
+        let result = Shell.pgrep [sprintf "-P %d" parentId]
+       
+        if result.Messages |> Seq.isEmpty then
+            [parentId] |> Seq.ofList
+        else
+            
+            parentId
+            ::
+            (result.Messages 
+            |> Seq.toList
+            // |> Seq.cache
+            |> Seq.choose(
+                fun text ->
+                    match Int32.TryParse(text) with
+                    | (true, v) -> Some v
+                    | _ -> None
+            )
+            |> Seq.collect (getAllChildIdsUnix)
+            |> Seq.toList)
+            |> Seq.ofList
+
+    let killChildrenAndProcess timeout killer parentId =
+        getAllChildIdsUnix  parentId 
+        |> Seq.rev
+        |> Seq.iter (killer >> ignore)
+
 let wrkDuration = 10
 
-let benchmarkIterations = 1
+let benchmarkIterations = 3
 
-#if MONO
-let inferFrameworkPathOverride () =
-    let mscorlib = "mscorlib.dll"
-    let possibleFrameworkPaths =
-        [ 
-            "/Library/Frameworks/Mono.framework/Versions/Current/lib/mono/4.5/"
-            "/usr/local/Cellar/mono/4.6.12/lib/mono/4.5/"
-            "/usr/lib/mono/4.5/"
-        ]
 
-    possibleFrameworkPaths
-    |> Seq.find (fun p ->IO.File.Exists(p @@ mscorlib))
-
-Environment.SetEnvironmentVariable("FrameworkPathOverride", inferFrameworkPathOverride ())
-#endif
-
+module Funcs =
+    let tee f x = f x ; x
 module String =
     let contains (s2 : string) (s1 : string)  =
         s1.Contains s2
@@ -49,6 +99,8 @@ module Option =
         match optV with
         | Some s -> s
         | None -> defaultValue
+module Seq =
+    let tee f = Seq.map(Funcs.tee f)
 
 // Directories
 let srcDir = "./src"
@@ -72,9 +124,9 @@ let convertMicrotoS (μs : int<μs>) =
 //Proc helpers
 let waitForExit ( proc : Process) = proc.WaitForExit()
 let startProc fileName args (envVars : #seq<string*string>) workingDir=
-    let psi = ProcessStartInfo(FileName = fileName, Arguments = args, WorkingDirectory = workingDir, UseShellExecute = false) 
-    envVars |> Seq.iter(fun (k,v) -> 
-        psi.EnvironmentVariables.[k] <- v)
+    let psi = ProcessStartInfo(FileName = fileName, Arguments = args, WorkingDirectory = workingDir, UseShellExecute = true) 
+    // envVars |> Seq.iter(fun (k,v) -> 
+        // psi.EnvironmentVariables.[k] <- v)
     let proc = 
         psi
         |> Process.Start
@@ -98,11 +150,11 @@ let getProcessMessages (procResult : ProcessResult) =
 let lsof args = execProcAndReturnMessages "lsof" args
  
 let kill procId = 
-    for i in 1 .. 10 do
-        execProcAndReturnMessages "kill" (procId |> sprintf "-SIGINT %d") |> ignore
-        Async.Sleep(100) |> Async.RunSynchronously
+    // for i in 1 .. 10 do
+    ProcessHelper.killChildrenAndProcess (TimeSpan.FromSeconds(1.)) ProcessHelper.Shell.killInt procId
+        // Async.Sleep(100) |> Async.RunSynchronously
 
-    execProcAndReturnMessages "kill" (procId |> sprintf "-%d") |> ignore
+    // execProcAndReturnMessages "pkill" (procId |> sprintf "-P %d") |> ignore
 
 let mono args = execProcAndReturnMessages "mono" args
 
@@ -127,10 +179,6 @@ let waitForPortInUse  port =
         | _ -> ()
         Async.Sleep(1000) |> Async.RunSynchronously
         
-
-
-let killProcessOnPort port =
-    getProcessesIdByPort port |> Seq.iter kill 
 
 
 
@@ -341,6 +389,7 @@ let selectRunner (projectInfo : ProjectInfo) =
                     sprintf "-f %s" projectInfo.TargetFramework
                     monoOptions ()
                     "--restore"
+                    "--inferruntime"
                     "-c Release"
                     sprintf "-p %s" projectInfo.ProjectFile
                 ]
@@ -360,7 +409,7 @@ let selectRunner (projectInfo : ProjectInfo) =
 
 type Iteration = int
 // type BenchmarkResult = ProjectInfo * Summary * Latency * Iteration * RoutesToTest
-
+[<CLIMutable>]
 type BenchmarkResult = {
     WebServer : ProjectName
     WebFramework: string
@@ -416,13 +465,11 @@ let runBenchmark iteration (benchParam : BenchmarkParamters) =
         let projectInfo = benchParam.ProjectInfo
         let urlToTest = sprintf "http://127.0.0.1:8083%s" benchParam.RoutesToTest
         logfn "---------------> Starting %s <---------------" projectInfo.FriendlyName
-        killProcessOnPort port 
+        ProcessHelper.Shell.killProcessOnPort port |> ignore
         use proc = selectRunner projectInfo
         waitForPortInUse port
+        printfn "Started ProcId %d" proc.Id 
         let (summary, latency) = wrk 8 400 wrkDuration "./scripts/reportStatsViaJson.lua" urlToTest
-        proc.Id |> kill
-        //Have to kill process by port because dotnet run calls dotnet exec which has a different process id
-        killProcessOnPort port 
         proc.Id |> kill
         logfn "---------------> Finished %s <---------------" projectInfo.FriendlyName
         Some (BenchmarkResult.OfBenchmarkResult(projectInfo, summary, latency, iteration, benchParam.RoutesToTest))
@@ -472,10 +519,11 @@ let gatherProjectInfoAndRoutesToTest (projFile : string) =
     )
     
     
- 
+let filter1 s = s |> Seq.filter(String.contains "Kestrel/Giraffe" )
 
 Target "DotnetRestore" (fun _ ->
         !! srcGlob
+        |> filter1
         |> Seq.toArray
         |> Array.iter dotnetRestore
  )
@@ -485,9 +533,23 @@ Target "DotnetRestore" (fun _ ->
 let (<||>) pred1 pred2 x =
         pred1 x || pred2 x
 
+let stringF f (s:TimeSpan) = s.ToString(f)
+
+let estimateTime (xs : _ seq) =
+    let howManyBenchmarks = xs |> Seq.length
+    let ts =
+        howManyBenchmarks * wrkDuration * benchmarkIterations
+        |> float
+        |> TimeSpan.FromSeconds
+        |> stringF "c"
+    printfn "---------------------------------------"
+    printfn "Running %d benchmarks at %d seconds each. Estimated time %s" howManyBenchmarks wrkDuration ts
+    printfn "---------------------------------------"
+    ()
+
 Target "Benchmark" (fun _ ->
     //Make sure nothing is on this port
-    killProcessOnPort port
+    ProcessHelper.Shell.killProcessOnPort port
     let foo = 
         [1..benchmarkIterations]
         |> Seq.collect(fun i -> 
@@ -495,10 +557,15 @@ Target "Benchmark" (fun _ ->
             |> Seq.toList
             |> Seq.cache
             // |> Seq.take 1
-            // |> Seq.filter(String.contains "Freya" )
+            |> filter1
+            |> Seq.tee (printfn "Project %A")
+            |> Seq.toList
             // |> Seq.filter(String.contains "Giraffe" <||> String.contains "Kestrel/MVC" <||> String.contains "Kestrel/Plain"  )
             |> Seq.collect gatherProjectInfoAndRoutesToTest
-            // |> Seq.filter(fun x -> x.TargetFramework |> String.contains "netcoreapp1")
+
+            |> Seq.filter(fun x -> x.ProjectInfo.TargetFramework |> String.contains "net462")
+            |> Seq.toList
+            |> Funcs.tee(estimateTime)
             |> Seq.choose (runBenchmark i)
             |> Seq.toList
             |> Seq.cache
@@ -610,6 +677,29 @@ Target "SystemInfo" (fun _ ->
     getSystemInfo() |> printfn "%A"
 )
 
+Target "AggregateReport"(fun _ ->
+    use textReader = File.OpenText "report-benchmark.csv"
+    use csv = new CsvReader( textReader )
+    let records = csv.GetRecords<BenchmarkResult>()
+
+    records
+    |> Seq.groupBy(fun x -> (x.WebServer,x.WebFramework,x.TargetFramework))
+    |> Seq.map(
+        fun ((ws,wf,tf),v) -> 
+            let aveRequests = 
+                 v
+                |> Seq.averageBy(fun x -> x.TotalRequests |> float)
+            let aveMeanLatency =
+                v
+                |> Seq.averageBy(fun x -> x.LatencyMean |> float)
+            sprintf "%s,%s,%s,%f,%f" ws wf tf aveRequests aveMeanLatency
+   
+
+    
+    )
+    |> Seq.iter(printfn "%A")
+)
+
 // Build order
 "Clean"
   ==> "DotnetRestore"
@@ -618,4 +708,4 @@ Target "SystemInfo" (fun _ ->
 
 
 // start build
-RunTargetOrDefault "SystemInfo"
+RunTargetOrDefault "GenerateReport"
