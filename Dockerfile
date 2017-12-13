@@ -24,14 +24,33 @@ RUN apt-get update \
         zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
-# Install .NET Core SDK
-ENV DOTNET_SDK_VERSION 1.0.1
-ENV DOTNET_SDK_DOWNLOAD_URL https://dotnetcli.blob.core.windows.net/dotnet/Sdk/$DOTNET_SDK_VERSION/dotnet-dev-debian-x64.$DOTNET_SDK_VERSION.tar.gz
-RUN curl -SL $DOTNET_SDK_DOWNLOAD_URL --output dotnet.tar.gz \
-    && mkdir -p /usr/share/dotnet \
-    && tar -zxf dotnet.tar.gz -C /usr/share/dotnet \
-    && rm dotnet.tar.gz \
-    && ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
+
+RUN curl -SL https://dot.net/v1/dotnet-install.sh --output dotnet-install.sh \
+    && chmod +x ./dotnet-install.sh
+
+ENV DOTNET_INSTALL_DIR /usr/share/dotnet
+RUN ./dotnet-install.sh -v 1.1.5
+RUN ./dotnet-install.sh -v 2.0.3
+RUN ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
+
+# # Install .NET Core SDK
+# ENV DOTNET_SDK_VERSION 1.1.5
+# ENV DOTNET_SDK_DOWNLOAD_URL https://dotnetcli.blob.core.windows.net/dotnet/Sdk/$DOTNET_SDK_VERSION/dotnet-dev-debian-x64.$DOTNET_SDK_VERSION.tar.gz
+# RUN curl -SL $DOTNET_SDK_DOWNLOAD_URL --output dotnet.tar.gz \
+#     && mkdir -p /usr/share/dotnet \
+#     && tar -zxf dotnet.tar.gz -C /usr/share/dotnet \
+#     && rm dotnet.tar.gz \
+#     && ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
+
+#     # Install .NET Core SDK
+# ENV DOTNET_SDK_VERSION 2.0.3
+# ENV DOTNET_SDK_DOWNLOAD_URL https://dotnetcli.blob.core.windows.net/dotnet/Sdk/$DOTNET_SDK_VERSION/dotnet-sdk-$DOTNET_SDK_VERSION-linux-x64.tar.gz
+# ENV DOTNET_SDK_DOWNLOAD_SHA 0f1006a5844f860242abb42c8d930f50dc5116ff5a3282b3cdae01ed9ac75dbfc6c74dc3d201358832082d7b6d0aa29b55043afa0493f61892e748c1cfbd0afa
+
+# RUN curl -SL $DOTNET_SDK_DOWNLOAD_URL --output dotnet.tar.gz \
+#     && tar -zxf dotnet.tar.gz -C /usr/share/dotnet \
+#     && rm dotnet.tar.gz \
+#     && ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
 
 # Trigger the population of the local package cache
 ENV NUGET_XMLDOC_MODE skip

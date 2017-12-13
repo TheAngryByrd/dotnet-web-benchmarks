@@ -84,7 +84,7 @@ module ProcessHelper =
 
 let wrkDuration = 10
 
-let benchmarkIterations = 3
+let benchmarkIterations = 2
 
 
 module Funcs =
@@ -173,7 +173,7 @@ let waitForPortInUse  port =
     let mutable portInUse = false
     let sw = System.Diagnostics.Stopwatch.StartNew()
     while not portInUse do  
-        if sw.ElapsedMilliseconds > 30000L then failwith "waited enough, must have failed"
+        if sw.ElapsedMilliseconds > 60000L then failwith "waited enough, must have failed"
         match getProcessIdByPort port with
         | Some _ -> portInUse <- true
         | _ -> ()
@@ -397,7 +397,7 @@ let selectRunner (projectInfo : ProjectInfo) =
             else 
                 failwithf "lol who uses windows"
             
-        | "netcoreapp1.0" | "netcoreapp1.1" -> 
+        | "netcoreapp1.0" | "netcoreapp1.1" | "netcoreapp2.0" -> 
             [
                 "run"
                 "-c Release"
@@ -519,7 +519,7 @@ let gatherProjectInfoAndRoutesToTest (projFile : string) =
     )
     
     
-let filter1 s = s |> Seq.filter(String.contains "Kestrel/Giraffe" )
+let filter1 s = s |> Seq.filter(String.contains "Kestrel/Plain" )
 
 Target "DotnetRestore" (fun _ ->
         !! srcGlob
@@ -563,7 +563,7 @@ Target "Benchmark" (fun _ ->
             // |> Seq.filter(String.contains "Giraffe" <||> String.contains "Kestrel/MVC" <||> String.contains "Kestrel/Plain"  )
             |> Seq.collect gatherProjectInfoAndRoutesToTest
 
-            |> Seq.filter(fun x -> x.ProjectInfo.TargetFramework |> String.contains "net462")
+            // |> Seq.filter(fun x -> x.ProjectInfo.TargetFramework |> String.contains "net462")
             |> Seq.toList
             |> Funcs.tee(estimateTime)
             |> Seq.choose (runBenchmark i)
